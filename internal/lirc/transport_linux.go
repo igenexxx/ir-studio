@@ -149,8 +149,26 @@ func configureLinuxTransport(tr *linuxTransport, recTimeoutUs uint32) error {
 			return err
 		}
 		_ = tr.SetRecTimeout(recTimeoutUs, true)
+		if tr.features&LIRC_CAN_MEASURE_CARRIER != 0 {
+			_ = tr.SetMeasureCarrier(true)
+		}
 	}
 	return nil
+}
+
+func (l *linuxTransport) SetMeasureCarrier(enable bool) error {
+	if l.rxFD < 0 || l.features&LIRC_CAN_MEASURE_CARRIER == 0 {
+		return ErrUnsupportedFeature
+	}
+	var mode uint32
+	if enable {
+		mode = 1
+	}
+	err := ioctlUint32(l.rxFD, LIRC_SET_MEASURE_CARRIER_MODE, &mode)
+	if errors.Is(err, syscall.ENOTTY) || errors.Is(err, syscall.EINVAL) {
+		return nil
+	}
+	return err
 }
 
 func (l *linuxTransport) Features() (uint32, error) { return l.features, nil }

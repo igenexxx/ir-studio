@@ -12,6 +12,7 @@ import (
 
 	"ir-studio/internal/dbsync"
 	"ir-studio/internal/irfile"
+	"ir-studio/internal/library"
 )
 
 func (s *Server) toolListRemotes(_ context.Context, raw json.RawMessage) (toolResult, *rpcError) {
@@ -184,12 +185,16 @@ func (s *Server) toolListDatabases(_ context.Context, _ json.RawMessage) (toolRe
 	items := make([]map[string]any, 0, len(packs))
 	for _, p := range packs {
 		if p.Virtual {
+			srcURL := "embedded://tv-b-gone"
+			if p.ID == library.VirtualPackTVService {
+				srcURL = "embedded://tv-service"
+			}
 			items = append(items, map[string]any{
 				"id":           p.ID,
 				"remote_count": p.FileCount,
 				"virtual":      true,
 				"last_synced":  "",
-				"source_url":   "embedded://tv-b-gone",
+				"source_url":   srcURL,
 			})
 			continue
 		}

@@ -28,6 +28,9 @@ type RXWorker struct {
 	registry  *irfile.ProtocolRegistry
 	captures  chan RXCapture
 
+	measuredFreqSum   uint64
+	measuredFreqCount uint64
+
 	mu         sync.Mutex
 	cancelLoop context.CancelFunc
 	wg         sync.WaitGroup
@@ -92,6 +95,7 @@ func (r *RXWorker) runLoop(ctx context.Context) {
 		}
 		if r.gate.IsTXActive() {
 			frame = frame[:0]
+			r.resetMeasuredCarrier()
 			continue
 		}
 		for _, pkt := range buf[:n] {
@@ -104,6 +108,10 @@ func (r *RXWorker) processPacket(frame irfile.PulseTrain, pkt uint32) irfile.Pul
 	kind := pkt & LIRC_MODE2_MASK
 	val := pkt & LIRC_VALUE_MASK
 
+	if kind == LIRC_MODE2_FREQUENCY {
+		r.recordMeasuredCarrier(val)
+		return frame
+	}
 	if kind == LIRC_MODE2_TIMEOUT {
 		r.flushFrame(frame)
 		return frame[:0]
@@ -145,6 +153,7 @@ func appendCoalesced(frame irfile.PulseTrain, dur int32) irfile.PulseTrain {
 }
 
 func (r *RXWorker) flushFrame(frame irfile.PulseTrain) {
+	measuredHz := r.consumeMeasuredCarrier()
 	if len(frame) > 0 && frame[len(frame)-1] < 0 {
 		frame = frame[:len(frame)-1]
 	}
@@ -165,7 +174,31 @@ func (r *RXWorker) flushFrame(frame irfile.PulseTrain) {
 			capEvt.CarrierEstHz = sig.Frequency
 		}
 	}
+	if measuredHz != 0 {
+		capEvt.CarrierEstHz = measuredHz
+	}
 	r.sendDropOldest(capEvt)
+}
+
+func (r *RXWorker) recordMeasuredCarrier(freqHz uint32) {
+	if freqHz >= irfile.MinFreqHz && freqHz <= irfile.MaxFreqHz {
+		r.measuredFreqSum += uint64(freqHz)
+		r.measuredFreqCount++
+	}
+}
+
+func (r *RXWorker) consumeMeasuredCarrier() uint32 {
+	if r.measuredFreqCount == 0 {
+		return 0
+	}
+	avg := uint32(r.measuredFreqSum / r.measuredFreqCount)
+	r.resetMeasuredCarrier()
+	return avg
+}
+
+func (r *RXWorker) resetMeasuredCarrier() {
+	r.measuredFreqSum = 0
+	r.measuredFreqCount = 0
 }
 
 func (r *RXWorker) sendDropOldest(c RXCapture) {

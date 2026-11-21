@@ -10,30 +10,33 @@ import (
 
 // Linux LIRC ioctl request numbers (SSOT from linux/lirc.h).
 const (
-	LIRC_GET_FEATURES            uintptr = 0x80046900
-	LIRC_SET_SEND_MODE           uintptr = 0x40046911
-	LIRC_SET_REC_MODE            uintptr = 0x40046912
-	LIRC_SET_SEND_CARRIER        uintptr = 0x40046913
-	LIRC_SET_SEND_DUTY_CYCLE     uintptr = 0x40046915
-	LIRC_SET_REC_TIMEOUT         uintptr = 0x40046918
-	LIRC_SET_REC_TIMEOUT_REPORTS uintptr = 0x40046919
+	LIRC_GET_FEATURES             uintptr = 0x80046900
+	LIRC_SET_SEND_MODE            uintptr = 0x40046911
+	LIRC_SET_REC_MODE             uintptr = 0x40046912
+	LIRC_SET_SEND_CARRIER         uintptr = 0x40046913
+	LIRC_SET_SEND_DUTY_CYCLE      uintptr = 0x40046915
+	LIRC_SET_REC_TIMEOUT          uintptr = 0x40046918
+	LIRC_SET_REC_TIMEOUT_REPORTS  uintptr = 0x40046919
+	LIRC_SET_MEASURE_CARRIER_MODE uintptr = 0x4004691d
 )
 
 // Linux LIRC mode & feature bitmasks (SSOT).
 const (
-	LIRC_MODE_PULSE     uint32 = 0x00000002
-	LIRC_MODE_MODE2     uint32 = 0x00000004
-	LIRC_CAN_SEND_PULSE uint32 = 0x00000002
-	LIRC_CAN_REC_MODE2  uint32 = 0x00040000
+	LIRC_MODE_PULSE          uint32 = 0x00000002
+	LIRC_MODE_MODE2          uint32 = 0x00000004
+	LIRC_CAN_SEND_PULSE      uint32 = 0x00000002
+	LIRC_CAN_REC_MODE2       uint32 = 0x00040000
+	LIRC_CAN_MEASURE_CARRIER uint32 = 0x02000000
 )
 
 // Linux LIRC mode2 packet bitmasks and packet type tags (SSOT).
 const (
-	LIRC_MODE2_MASK    uint32 = 0xFF000000
-	LIRC_VALUE_MASK    uint32 = 0x00FFFFFF
-	LIRC_MODE2_SPACE   uint32 = 0x00000000
-	LIRC_MODE2_PULSE   uint32 = 0x01000000
-	LIRC_MODE2_TIMEOUT uint32 = 0x03000000
+	LIRC_MODE2_MASK      uint32 = 0xFF000000
+	LIRC_VALUE_MASK      uint32 = 0x00FFFFFF
+	LIRC_MODE2_SPACE     uint32 = 0x00000000
+	LIRC_MODE2_PULSE     uint32 = 0x01000000
+	LIRC_MODE2_FREQUENCY uint32 = 0x02000000
+	LIRC_MODE2_TIMEOUT   uint32 = 0x03000000
 )
 
 // Carrier, duty cycle, framing, and safety bounds (SSOT).

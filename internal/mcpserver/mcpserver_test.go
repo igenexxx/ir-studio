@@ -213,6 +213,25 @@ func (b *stubBackend) SweepCarrier(_ context.Context, sig irfile.IRSignal, freqs
 		RestoredDutyPct: lirc.DefaultDutyPct,
 	}, nil
 }
+func (b *stubBackend) TripwireProbe(_ context.Context, cfg lirc.TripwireConfig) (lirc.TripwireReading, error) {
+	b.txCalls.Add(1)
+	if cfg.Mode == "" {
+		cfg.Mode = lirc.TripwireReflective
+	}
+	if cfg.PingCount == 0 {
+		cfg.PingCount = lirc.DefaultTripwirePings
+	}
+	return lirc.TripwireReading{
+		Timestamp:      time.Now(),
+		Mode:           cfg.Mode,
+		CarrierHz:      lirc.DefaultCarrierHz,
+		PingsSent:      cfg.PingCount,
+		EchoesReceived: cfg.PingCount,
+		ReflectionPct:  100,
+		Triggered:      cfg.Mode == lirc.TripwireReflective,
+		HardwareMode:   "SIM",
+	}, nil
+}
 
 func TestServeStdioDisabledGate(t *testing.T) {
 	var out bytes.Buffer
@@ -277,7 +296,7 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 		t.Fatalf("unexpected init response: %+v", initResp)
 	}
 
-	// Verify tools/list returns all 21 tools with 1:1 schema-to-handler bijection.
+	// Verify tools/list returns all 28 tools with 1:1 schema-to-handler bijection.
 	var listResp struct {
 		Result struct {
 			Tools []toolDefinition `json:"tools"`
@@ -286,8 +305,8 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[2]), &listResp); err != nil {
 		t.Fatalf("unmarshal tools/list: %v", err)
 	}
-	if len(listResp.Result.Tools) != 23 {
-		t.Fatalf("expected 23 tools, got %d", len(listResp.Result.Tools))
+	if len(listResp.Result.Tools) != 28 {
+		t.Fatalf("expected 28 tools, got %d", len(listResp.Result.Tools))
 	}
 	seen := make(map[string]bool, len(listResp.Result.Tools))
 	for _, td := range listResp.Result.Tools {
@@ -588,9 +607,9 @@ func TestLibraryAndSourcesTools(t *testing.T) {
 		t.Fatalf("ir_read_remote failed: %+v", out)
 	}
 
-	// List databases (GEN:TV-B-Gone + acs) & Promote twice (collision-safe).
+	// List databases (GEN:TV-B-Gone + GEN:TV-Service + acs) & Promote twice (collision-safe).
 	res, out = callTool(t, env.srv, "ir_list_databases", map[string]any{})
-	if res.IsError || len(out["packs"].([]any)) != 2 {
+	if res.IsError || len(out["packs"].([]any)) != 3 {
 		t.Fatalf("ir_list_databases failed: %+v", out)
 	}
 	res, p1 := callTool(t, env.srv, "ir_promote_remote", map[string]any{"pack": "acs", "remote_name": "Daikin.ir"})

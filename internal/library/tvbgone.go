@@ -2,7 +2,6 @@ package library
 
 import (
 	"fmt"
-	"slices"
 
 	"ir-studio/internal/irfile"
 )
@@ -37,7 +36,7 @@ type TVBGoneEntry struct {
 // IsVirtualPack reports whether pack is a known compiled-in virtual pack.
 // Strict equality prevents path-sandbox bypasses such as "GEN:../etc".
 func IsVirtualPack(pack string) bool {
-	return pack == VirtualPackTVBGone
+	return pack == VirtualPackTVBGone || pack == VirtualPackTVService
 }
 
 // TVBGoneEntries returns a copy of all 100 embedded Power codes in deterministic
@@ -83,18 +82,13 @@ func TVBGoneRemotes() []RemoteEntry {
 }
 
 func lookupVirtualRemote(entry RemoteEntry) (RemoteEntry, error) {
-	if entry.SourcePack != VirtualPackTVBGone {
+	if !IsVirtualPack(entry.SourcePack) {
 		return RemoteEntry{}, fmt.Errorf("%s: %w", entry.SourcePack, ErrNotFound)
 	}
 	if len(entry.Signals) > 0 {
-		cp := entry
-		cp.ReadOnly = true
-		cp.ButtonCount = len(cp.Signals)
-		cp.Protocols = collectProtocols(cp.Signals)
-		cp.Signals = slices.Clone(entry.Signals)
-		return cp, nil
+		return cloneVirtualRemote(entry), nil
 	}
-	for _, r := range TVBGoneRemotes() {
+	for _, r := range virtualPackRemotes(entry.SourcePack) {
 		if r.RelPath == entry.RelPath || r.Name == entry.Name {
 			return r, nil
 		}

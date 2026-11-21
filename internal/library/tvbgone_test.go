@@ -61,12 +61,12 @@ func TestTVBGoneStoreIntegrationAndReadOnlyProtection(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "remotes"), filepath.Join(dir, "databases"))
 
-	// Zero-network first boot: ListDatabasePacks still returns GEN:TV-B-Gone.
+	// Zero-network first boot: ListDatabasePacks still returns GEN:TV-B-Gone and GEN:TV-Service.
 	packs, err := store.ListDatabasePacks()
 	if err != nil {
 		t.Fatalf("ListDatabasePacks: %v", err)
 	}
-	if len(packs) != 1 || packs[0].ID != VirtualPackTVBGone || !packs[0].Virtual || packs[0].FileCount != TVBGoneCodeCount {
+	if len(packs) != 2 || packs[0].ID != VirtualPackTVBGone || !packs[0].Virtual || packs[0].FileCount != TVBGoneCodeCount || packs[1].ID != VirtualPackTVService {
 		t.Fatalf("unexpected virtual pack list: %+v", packs)
 	}
 

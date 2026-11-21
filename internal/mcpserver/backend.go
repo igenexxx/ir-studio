@@ -35,6 +35,7 @@ type IRBackend interface {
 	LearnSignal(ctx context.Context, timeout time.Duration, carrierHz uint32) (lirc.RXCapture, error)
 	TransmitSignal(ctx context.Context, sig irfile.IRSignal, repeat int, carrier irfile.CarrierSpec) (time.Duration, error)
 	SweepCarrier(ctx context.Context, sig irfile.IRSignal, freqs []uint32, dutyPct uint32, gap time.Duration) (lirc.SweepReport, error)
+	TripwireProbe(ctx context.Context, cfg lirc.TripwireConfig) (lirc.TripwireReading, error)
 }
 
 // HardwareBackend serializes all LIRC/SIM hardware operations with lircMu.
@@ -205,6 +206,16 @@ func (b *HardwareBackend) SweepCarrier(
 		return lirc.SweepReport{}, errors.New("LIRC transceiver not initialized")
 	}
 	return lirc.SweepCarrier(ctx, b.xcvr, b.registry, sig, freqs, dutyPct, gap, nil)
+}
+
+// TripwireProbe runs a bounded 38 kHz optical tripwire/proximity probe under lircMu.
+func (b *HardwareBackend) TripwireProbe(ctx context.Context, cfg lirc.TripwireConfig) (lirc.TripwireReading, error) {
+	b.lircMu.Lock()
+	defer b.lircMu.Unlock()
+	if b.xcvr == nil {
+		return lirc.TripwireReading{}, errors.New("LIRC transceiver not initialized")
+	}
+	return lirc.TripwireProbe(ctx, b.xcvr, cfg)
 }
 
 func (b *HardwareBackend) encodeToLIRC(sig irfile.IRSignal) ([]uint32, error) {

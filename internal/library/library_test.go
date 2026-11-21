@@ -80,12 +80,12 @@ func writePackFile(t *testing.T, store *Store, pack, name string, f *irfile.IRFi
 func TestStoreSeparationAndLazyListing(t *testing.T) {
 	store := newTestStore(t)
 
-	// Missing dirs return empty user remotes and the built-in GEN:TV-B-Gone virtual pack.
+	// Missing dirs return empty user remotes and the built-in virtual packs.
 	if got, err := store.ListUserRemotes(); err != nil || len(got) != 0 {
 		t.Fatalf("ListUserRemotes on missing dir = (%v, %v); want empty, nil", got, err)
 	}
-	if got, err := store.ListDatabasePacks(); err != nil || len(got) != 1 || got[0].ID != VirtualPackTVBGone {
-		t.Fatalf("ListDatabasePacks on missing dir = (%v, %v); want [GEN:TV-B-Gone], nil", got, err)
+	if got, err := store.ListDatabasePacks(); err != nil || len(got) != 2 || got[0].ID != VirtualPackTVBGone || got[1].ID != VirtualPackTVService {
+		t.Fatalf("ListDatabasePacks on missing dir = (%v, %v); want [GEN:TV-B-Gone GEN:TV-Service], nil", got, err)
 	}
 
 	if _, err := store.SaveUserRemote("MyTV", sampleNECFile()); err != nil {
@@ -121,7 +121,7 @@ func TestStoreSeparationAndLazyListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDatabasePacks: %v", err)
 	}
-	if len(packs) != 3 || packs[0].ID != VirtualPackTVBGone || packs[1].ID != "acs" || packs[2].ID != "tvs" || packs[2].FileCount != 1 {
+	if len(packs) != 4 || packs[0].ID != VirtualPackTVBGone || packs[1].ID != VirtualPackTVService || packs[2].ID != "acs" || packs[3].ID != "tvs" || packs[3].FileCount != 1 {
 		t.Fatalf("unexpected packs: %+v", packs)
 	}
 

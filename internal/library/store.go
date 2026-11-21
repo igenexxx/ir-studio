@@ -92,11 +92,18 @@ func (s *Store) ListUserRemotes() ([]RemoteEntry, error) {
 // ListDatabasePacks enumerates compiled-in virtual packs followed by pack
 // subdirectories inside DatabasesDir.
 func (s *Store) ListDatabasePacks() ([]DatabasePack, error) {
-	packs := []DatabasePack{{
-		ID:        VirtualPackTVBGone,
-		FileCount: TVBGoneCodeCount,
-		Virtual:   true,
-	}}
+	packs := []DatabasePack{
+		{
+			ID:        VirtualPackTVBGone,
+			FileCount: TVBGoneCodeCount,
+			Virtual:   true,
+		},
+		{
+			ID:        VirtualPackTVService,
+			FileCount: TVServiceRemoteCount(),
+			Virtual:   true,
+		},
+	}
 	entries, err := os.ReadDir(s.DatabasesDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -126,7 +133,7 @@ func (s *Store) ListDatabasePacks() ([]DatabasePack, error) {
 // or returns embedded entries for compiled-in virtual packs.
 func (s *Store) ListPackRemotes(pack string) ([]RemoteEntry, error) {
 	if IsVirtualPack(pack) {
-		return TVBGoneRemotes(), nil
+		return virtualPackRemotes(pack), nil
 	}
 	if err := validateBareName(pack); err != nil {
 		return nil, err

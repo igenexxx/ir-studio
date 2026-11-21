@@ -22,6 +22,12 @@ type Transport interface {
 	Close() error
 }
 
+// CarrierMeasurer is optionally implemented by Transports supporting
+// LIRC_SET_MEASURE_CARRIER_MODE / LIRC_MODE2_FREQUENCY hardware reporting.
+type CarrierMeasurer interface {
+	SetMeasureCarrier(enable bool) error
+}
+
 // DiscoverOptions controls LIRC device discovery and SIM fallback behavior.
 type DiscoverOptions struct {
 	ForceSim      bool
@@ -43,17 +49,18 @@ func Discover(opts DiscoverOptions) (Transport, error) {
 
 // SimTransport is a deterministic, thread-safe in-memory LIRC transceiver.
 type SimTransport struct {
-	mu          sync.Mutex
-	carrierHz   uint32
-	dutyPct     uint32
-	sendMode    uint32
-	recMode     uint32
-	recTimeout  uint32
-	loopback    bool
-	closed      bool
-	rxQueue     []uint32
-	rxNotify    chan struct{}
-	txHistory   [][]uint32
+	mu             sync.Mutex
+	carrierHz      uint32
+	dutyPct        uint32
+	sendMode       uint32
+	recMode        uint32
+	recTimeout     uint32
+	measureCarrier bool
+	loopback       bool
+	closed         bool
+	rxQueue        []uint32
+	rxNotify       chan struct{}
+	txHistory      [][]uint32
 }
 
 // NewSimTransport constructs a SimTransport initialized to default 38 kHz / 33%.
@@ -69,7 +76,22 @@ func NewSimTransport() *SimTransport {
 }
 
 func (s *SimTransport) Features() (uint32, error) {
-	return LIRC_CAN_SEND_PULSE | LIRC_CAN_REC_MODE2, nil
+	return LIRC_CAN_SEND_PULSE | LIRC_CAN_REC_MODE2 | LIRC_CAN_MEASURE_CARRIER, nil
+}
+
+// SetMeasureCarrier toggles simulated RX carrier frequency measurement mode.
+func (s *SimTransport) SetMeasureCarrier(enable bool) error {
+	s.mu.Lock()
+	s.measureCarrier = enable
+	s.mu.Unlock()
+	return nil
+}
+
+// MeasureCarrierEnabled reports whether simulated RX carrier measurement is enabled.
+func (s *SimTransport) MeasureCarrierEnabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.measureCarrier
 }
 
 func (s *SimTransport) SetSendMode(mode uint32) error {

@@ -1,6 +1,6 @@
 package mcpserver
 
-// toolDefinitions is the Single Source of Truth (SSOT) for all 23 MCP tools.
+// toolDefinitions is the Single Source of Truth (SSOT) for all 28 MCP tools.
 func toolDefinitions() []toolDefinition {
 	return []toolDefinition{
 		{
@@ -209,6 +209,55 @@ func toolDefinitions() []toolDefinition {
 				"frequencies_hz": arrIntProp("Optional carrier frequencies in Hz (36000..56000, max 8; default [36000,38000,40000,56000])"),
 				"duty_pct":       intProp("Duty cycle percent (25..50, default 33)", 25, 50),
 				"gap_ms":         intProp("Inter-step delay in milliseconds (40..1000, default 80)", 40, 1000),
+			}, []string{"confirm_ir"}),
+		},
+		{
+			Name:        "ir_import_pronto",
+			Description: "Parse a Pronto Hex (0000 ...) string into a Flipper RAW IRSignal and optionally save/upsert it into UserLibrary.",
+			InputSchema: objSchema(map[string]any{
+				"name":       strProp("Button name for the imported IR signal"),
+				"pronto_hex": strProp("Space-separated raw learned Pronto Hex string starting with 0000"),
+				"save_as":    strProp("Optional UserLibrary .ir filename to persist the imported button"),
+			}, []string{"name", "pronto_hex"}),
+		},
+		{
+			Name:        "ir_export_pronto",
+			Description: "Export a saved remote button or raw pulse train as a lossless Pronto Hex (0000 ...) string.",
+			InputSchema: objSchema(map[string]any{
+				"remote_name": strProp("Optional remote filename (with button_name)"),
+				"button_name": strProp("Optional button name inside remote_name"),
+				"pack":        strProp("Optional DatabasePack ID (including GEN:TV-B-Gone and GEN:TV-Service)"),
+				"pulses":      arrIntProp("Optional alternating signed +mark/-space microsecond pulse durations"),
+				"carrier_hz":  intProp("Optional carrier frequency in Hz for raw pulses (default 38000)", 10000, 100000),
+			}, nil),
+		},
+		{
+			Name:        "ir_modem_send",
+			Description: "Encode a <= 64-byte payload (UTF-8 text or hex) with CRC-8 via internal/irmodem and transmit at 38 kHz. Requires confirm_ir: true.",
+			InputSchema: objSchema(map[string]any{
+				"confirm_ir":   boolProp("Must be true to emit IR signals"),
+				"payload_text": strProp("UTF-8 payload string (<= 64 bytes; mutually exclusive with payload_hex)"),
+				"payload_hex":  strProp("Hex-encoded payload bytes (<= 64 bytes; mutually exclusive with payload_text)"),
+				"carrier_hz":   intProp("Optional carrier frequency in Hz (36000..56000, default 38000)", 36000, 56000),
+			}, []string{"confirm_ir"}),
+		},
+		{
+			Name:        "ir_modem_recv",
+			Description: "Capture an IR frame or decode supplied pulses using the 38 kHz optical data modem (CRC-8 verified).",
+			InputSchema: objSchema(map[string]any{
+				"timeout_ms": intProp("Capture window in milliseconds (500..15000, default 5000)", 500, 15000),
+				"pulses":     arrIntProp("Optional alternating signed +mark/-space pulse train to decode offline"),
+			}, nil),
+		},
+		{
+			Name:        "ir_tripwire_probe",
+			Description: "Emit bounded 38 kHz ping bursts and measure RX optical reflection or beam-break. Requires confirm_ir: true.",
+			InputSchema: objSchema(map[string]any{
+				"confirm_ir": boolProp("Must be true to emit IR signals"),
+				"mode":       enumProp("Detection mode (default reflective)", []string{"reflective", "beam_break"}),
+				"ping_count": intProp("Number of 38 kHz pings (1..10, default 3)", 1, 10),
+				"carrier_hz": intProp("Carrier frequency in Hz (36000..56000, default 38000)", 36000, 56000),
+				"listen_ms":  intProp("Per-ping RX listen window in milliseconds (5..500, default 35)", 5, 500),
 			}, []string{"confirm_ir"}),
 		},
 	}
