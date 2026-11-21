@@ -123,6 +123,9 @@ func (w *TXWorker) CancelCurrent() {
 // Events returns the read-only TXEvent channel.
 func (w *TXWorker) Events() <-chan TXEvent { return w.events }
 
+// Transceiver returns the underlying LIRC transceiver used by this worker.
+func (w *TXWorker) Transceiver() *Transceiver { return w.xcvr }
+
 // Close cancels the active TX and waits for the worker goroutine to exit.
 func (w *TXWorker) Close() {
 	w.CancelCurrent()

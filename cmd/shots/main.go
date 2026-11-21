@@ -165,7 +165,15 @@ func captureScreens(app *ui.App, c *fb.Canvas, outDir string, scale int) ([]stri
 		setup func()
 	}{
 		{"rx.png", func() { app.SwitchTab(ui.TabRX); app.Chrome.ToastText = "" }},
-		{"remote.png", func() { app.SwitchTab(ui.TabRemote); app.Chrome.ToastText = "" }},
+		{"remote.png", func() { app.SwitchTab(ui.TabRemote); app.Remote.AC.Active = false; app.Chrome.ToastText = "" }},
+		{"ac.png", func() {
+			app.SwitchTab(ui.TabRemote)
+			app.Remote.AC.Active = true
+			app.Remote.AC.TempC = 22
+			app.Remote.AC.Power = true
+			app.Remote.AC.Swing = true
+			app.Chrome.ToastText = ""
+		}},
 		{"probe.png", func() {
 			app.SwitchTab(ui.TabProbe)
 			app.HandleKey(input.KeyR)

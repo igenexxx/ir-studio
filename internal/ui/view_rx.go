@@ -83,7 +83,13 @@ func (a *App) handleRXKey(act input.KeyAction) bool {
 		a.RX.Learning = !a.RX.Learning
 		a.SetToast(boolLabel(a.RX.Learning, "RX listening", "RX held"), fb.ColCyan)
 	case input.KeySoft5:
-		a.toggleRXDenoise()
+		if !a.RX.Learning && a.RX.LastCap != nil {
+			a.sweepActiveRX()
+		} else {
+			a.toggleRXDenoise()
+		}
+	case input.KeyR:
+		a.sweepActiveRX()
 	case input.KeySoft6:
 		a.toggleACDiffMode()
 	case input.KeySoft7:
@@ -101,12 +107,33 @@ func (a *App) handleRXKey(act input.KeyAction) bool {
 	case input.KeyEnter:
 		a.promoteSelectedMatch()
 	case input.KeyEsc:
+		if a.cancelCarrierSweep() {
+			return false
+		}
 		if a.RX.AC.Active {
 			a.RX.AC.Active = false
 			a.RX.AC.HasBase = false
 		}
 	}
 	return false
+}
+
+func (a *App) sweepActiveRX() {
+	pulses := a.activeRXPulses()
+	if len(pulses) == 0 {
+		a.SetToast("No signal to sweep", fb.ColAmber)
+		return
+	}
+	spec := irfile.CarrierSpec{FreqHz: a.Set.Settings.CarrierHz, DutyPct: a.Set.Settings.DutyCyclePct}
+	sig, err := a.reg.DecodeOrRaw(pulses, spec)
+	if err != nil {
+		a.SetToast("Sweep err: "+truncate(err.Error(), 24), fb.ColRed)
+		return
+	}
+	if sig.Name == "" {
+		sig.Name = "RX_Capture"
+	}
+	a.startCarrierSweep(sig)
 }
 
 func (a *App) toggleRXDenoise() {
@@ -178,10 +205,13 @@ func (a *App) renderRX(c *fb.Canvas) {
 		drawConfirmBanner(c, "ML: Noise! Save anyway? [Enter=YES]")
 	}
 	s4 := "LEARN"
+	s5 := "CLEAN"
 	if a.RX.Learning {
 		s4 = "HOLD"
+	} else if a.RX.LastCap != nil {
+		s5 = "SWEEP"
 	}
-	a.drawNavBar(c, [5]string{s4, "CLEAN", "DIFF", "SAVE", "CARR"})
+	a.drawNavBar(c, [5]string{s4, s5, "DIFF", "SAVE", "CARR"})
 }
 
 func (a *App) drawRXSubHeader(c *fb.Canvas) {

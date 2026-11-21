@@ -34,6 +34,7 @@ type IRBackend interface {
 	AmbientSnapshot() irml.AmbientSnapshot
 	LearnSignal(ctx context.Context, timeout time.Duration, carrierHz uint32) (lirc.RXCapture, error)
 	TransmitSignal(ctx context.Context, sig irfile.IRSignal, repeat int, carrier irfile.CarrierSpec) (time.Duration, error)
+	SweepCarrier(ctx context.Context, sig irfile.IRSignal, freqs []uint32, dutyPct uint32, gap time.Duration) (lirc.SweepReport, error)
 }
 
 // HardwareBackend serializes all LIRC/SIM hardware operations with lircMu.
@@ -187,6 +188,23 @@ func (b *HardwareBackend) TransmitSignal(ctx context.Context, sig irfile.IRSigna
 		}
 	}
 	return time.Since(start), nil
+}
+
+// SweepCarrier executes a multi-carrier resend sweep under lircMu with guaranteed
+// restoration to 38000 Hz / 33%.
+func (b *HardwareBackend) SweepCarrier(
+	ctx context.Context,
+	sig irfile.IRSignal,
+	freqs []uint32,
+	dutyPct uint32,
+	gap time.Duration,
+) (lirc.SweepReport, error) {
+	b.lircMu.Lock()
+	defer b.lircMu.Unlock()
+	if b.xcvr == nil {
+		return lirc.SweepReport{}, errors.New("LIRC transceiver not initialized")
+	}
+	return lirc.SweepCarrier(ctx, b.xcvr, b.registry, sig, freqs, dutyPct, gap, nil)
 }
 
 func (b *HardwareBackend) encodeToLIRC(sig irfile.IRSignal) ([]uint32, error) {

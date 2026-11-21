@@ -77,7 +77,7 @@ func NewServer(backend IRBackend, cfg ServeConfig) *Server {
 		settings:    cfg.Settings,
 		sourcesPath: cfg.SourcesPath,
 		macrosPath:  cfg.MacrosPath,
-		handlers:    make(map[string]toolHandler, 21),
+		handlers:    make(map[string]toolHandler, 23),
 	}
 	s.registerTools()
 	return s
@@ -113,6 +113,8 @@ func (s *Server) registerTools() {
 	s.handlers["ir_remove_source"] = s.toolRemoveSource
 	s.handlers["ir_sync_sources"] = s.toolSyncSources
 	s.handlers["ir_delete_pack_files"] = s.toolDeletePackFiles
+	s.handlers["ir_send_ac_state"] = s.toolSendACState
+	s.handlers["ir_sweep_carrier"] = s.toolSweepCarrier
 }
 
 type rpcRequest struct {

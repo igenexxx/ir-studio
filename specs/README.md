@@ -18,6 +18,7 @@ Authoritative SDD specification suite for **IR Studio** (`ir-studio`), a pure-Go
 | **Epic 5** | [05-ir-exclusive-features.md](05-ir-exclusive-features.md) | `US-05.1` – `US-05.4` | Virtual Remote Deck (`REMOTE` tab + Learn/Append/Rename/Delete buttons), AC State-Frame Bit-Diff Inspector, Multi-Device IR Macros (`MACRO` tab), Ambient IR Interference & Carrier (`36–56 kHz`) Monitor |
 | **Epic 6** | [06-mcp-server-and-security.md](06-mcp-server-and-security.md) | `US-06.1` – `US-06.3` | Default-deny pure-Go JSON-RPC 2.0 stdio MCP server (`--mcp`), 21 typed tools (`confirm_ir: true`, `confirm: true`), HTTPS/1 MiB/sandbox/non-root security invariants |
 | **Epic 7** | [07-ui-packaging-and-portal.md](07-ui-packaging-and-portal.md) | `US-07.1` – `US-07.3` | `320×170` LCD UX & 46-key ergonomics, `cmd/shots` visual QA, `.deb` APPLaunch packaging, Learning Portal guides + interactive IR waveform lab + glossary |
+| **Epic 8** | [08-tvbgone-ac-and-sweeper.md](08-tvbgone-ac-and-sweeper.md) | `US-08.1` – `US-08.3` | Built-in offline `GEN:TV-B-Gone` virtual pack (top-100 TV/Projector/Soundbar Power codes), Smart AC State-Frame Controller (`Gree`/`Midea`/`Daikin`/`LG_AC`/`Samsung_AC`/`Mitsubishi` + `ir_send_ac_state`), Carrier Frequency Sweeper (`36/38/40/56 kHz` + `ir_sweep_carrier`) |
 
 ## Recommended Implementation Order
 
@@ -26,3 +27,4 @@ Authoritative SDD specification suite for **IR Studio** (`ir-studio`), a pure-Go
 3. **Epic 4** (`internal/irml` — 0-alloc ML core + benchmarks)
 4. **Epic 5 & 7** (`internal/ui` 6 tabs + `cmd/ir-studio` + `cmd/shots` + `.deb`)
 5. **Epic 6 & 7** (`internal/mcpserver` 21 tools + Learning Portal sync)
+6. **Epic 8** (`GEN:TV-B-Gone` virtual pack, parametric AC encoders + `AC` sub-view, Carrier Sweeper, 2 new MCP tools -> 23 total + Learning Portal sync)

@@ -191,12 +191,13 @@ func TestSavedMultiSelectAndReadOnlyDBProtection(t *testing.T) {
 	if app.Saved.ScopeUser {
 		t.Fatalf("expected DB scope after KeySoft8")
 	}
+	beforeDB := len(app.Saved.DBEntries)
 	app.HandleKey(input.KeySoft7)
 	if app.Saved.ConfirmDel {
 		t.Fatalf("RO DB pack must NEVER enter ConfirmDel")
 	}
-	if len(app.Saved.DBEntries) != 1 {
-		t.Fatalf("DBEntries modified: got %d, want 1", len(app.Saved.DBEntries))
+	if len(app.Saved.DBEntries) != beforeDB || beforeDB == 0 {
+		t.Fatalf("DBEntries modified: got %d, want %d", len(app.Saved.DBEntries), beforeDB)
 	}
 
 	// Promote DB remote to USER via KeySoft6.
@@ -265,5 +266,90 @@ func TestMacroAndSettingsInteractions(t *testing.T) {
 	app.HandleKey(input.KeyEsc)
 	if app.Set.SubViewSources {
 		t.Fatalf("expected SubViewSources=false after Esc")
+	}
+}
+
+func TestACControllerSubViewAndPersistence(t *testing.T) {
+	app, sim := newTestApp(t)
+	c, _ := fb.NewCanvas("")
+
+	app.SwitchTab(TabRemote)
+	app.HandleKey(input.KeySoft8) // opens AC sub-view on USER remote
+	if !app.Remote.AC.Active {
+		t.Fatalf("expected Remote.AC.Active=true after KeySoft8")
+	}
+
+	// Z/C temperature clamping [16..30].
+	for range 20 {
+		app.HandleKey(input.KeyRight)
+	}
+	if app.Remote.AC.TempC != irfile.ACMaxTempC {
+		t.Fatalf("TempC max clamp got %d, want %d", app.Remote.AC.TempC, irfile.ACMaxTempC)
+	}
+	for range 20 {
+		app.HandleKey(input.KeyLeft)
+	}
+	if app.Remote.AC.TempC != irfile.ACMinTempC {
+		t.Fatalf("TempC min clamp got %d, want %d", app.Remote.AC.TempC, irfile.ACMinTempC)
+	}
+	// Dial to 24C, cycle mode, brand, fan, swing, render, send, save.
+	for range 8 {
+		app.HandleKey(input.KeyRight)
+	}
+	app.HandleKey(input.KeyDown)  // HEAT
+	app.HandleKey(input.KeyR)     // Midea
+	app.HandleKey(input.KeySoft5) // FAN LOW
+	app.HandleKey(input.KeySoft6) // SWING ON
+	app.Render(c)
+
+	app.HandleKey(input.KeySoft7) // SEND
+	app.HandleKey(input.KeySoft8) // SAVE -> AC_Midea.ir
+	if _, err := app.Deps.Store.LoadUserRemote("AC_Midea.ir"); err != nil {
+		t.Fatalf("expected AC_Midea.ir saved in UserLibrary: %v", err)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for len(sim.TxHistory()) == 0 && time.Now().Before(deadline) {
+		app.Step()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(sim.TxHistory()) == 0 {
+		t.Fatalf("expected AC state frame transmitted")
+	}
+
+	app.HandleKey(input.KeyEsc)
+	if app.Remote.AC.Active {
+		t.Fatalf("expected Remote.AC.Active=false after Esc")
+	}
+}
+
+func TestCarrierSweepAndTVBGoneDefaultProbe(t *testing.T) {
+	app, sim := newTestApp(t)
+
+	// Fresh probe defaults to GEN:TV-B-Gone with 100 Power candidates.
+	app.SwitchTab(TabProbe)
+	if app.probePackLabel() != "GEN:TVBG" || len(app.Probe.Candidates) != library.TVBGoneCodeCount {
+		t.Fatalf("expected GEN:TVBG (100), got %q (%d)", app.probePackLabel(), len(app.Probe.Candidates))
+	}
+
+	// Trigger non-blocking carrier sweep from REMOTE tab via KeySoft5.
+	app.SwitchTab(TabRemote)
+	app.HandleKey(input.KeySoft5)
+	if !app.Chrome.Sweep.Active {
+		t.Fatalf("expected Sweep.Active=true after REMOTE KeySoft5")
+	}
+	deadline := time.Now().Add(1500 * time.Millisecond)
+	for app.Chrome.Sweep.Active && time.Now().Before(deadline) {
+		app.Step()
+		time.Sleep(15 * time.Millisecond)
+	}
+	if app.Chrome.Sweep.Active {
+		t.Fatalf("carrier sweep did not finish in time")
+	}
+	if len(sim.TxHistory()) < 4 {
+		t.Fatalf("expected >= 4 sweep bursts, got %d", len(sim.TxHistory()))
+	}
+	if st := sim.CarrierState(); st.FreqHz != lirc.DefaultCarrierHz || st.DutyPct != lirc.DefaultDutyPct {
+		t.Fatalf("carrier not restored after UI sweep: %+v", st)
 	}
 }

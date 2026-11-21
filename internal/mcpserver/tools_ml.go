@@ -160,8 +160,10 @@ func (s *Server) toolRankProbePack(_ context.Context, raw json.RawMessage) (tool
 	if rpcErr := decodeArgs(raw, &args); rpcErr != nil {
 		return toolResult{}, rpcErr
 	}
-	if err := ValidateSafeName(args.Pack); err != nil {
-		return errResult(err.Error()), nil
+	if !library.IsVirtualPack(args.Pack) {
+		if err := ValidateSafeName(args.Pack); err != nil {
+			return errResult(err.Error()), nil
+		}
 	}
 	pulses, carrierHz, err := s.resolvePulses(args.ReferencePulses, args.ReferenceRemote, args.ReferenceButton, "", 0)
 	if err != nil {

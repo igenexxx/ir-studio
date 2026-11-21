@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -52,14 +53,7 @@ func (a *App) openRemoteEntry(entry library.RemoteEntry) {
 func sortRemoteButtons(sigs []irfile.IRSignal) []irfile.IRSignal {
 	out := slices.Clone(sigs)
 	slices.SortStableFunc(out, func(a, b irfile.IRSignal) int {
-		pa, pb := buttonPriority(a.Name), buttonPriority(b.Name)
-		if pa != pb {
-			if pa < pb {
-				return -1
-			}
-			return 1
-		}
-		return 0
+		return cmp.Compare(buttonPriority(a.Name), buttonPriority(b.Name))
 	})
 	return out
 }
@@ -85,6 +79,9 @@ func buttonPriority(name string) int {
 }
 
 func (a *App) handleRemoteKey(act input.KeyAction) bool {
+	if a.Remote.AC.Active {
+		return a.handleACKey(act)
+	}
 	if a.Remote.ConfirmDel {
 		return a.handleRemoteConfirmDel(act)
 	}
@@ -102,14 +99,21 @@ func (a *App) handleRemoteKey(act input.KeyAction) bool {
 	case input.KeySpace:
 		a.fireRemoteButton(3)
 	case input.KeySoft5:
-		a.startRemoteLearn()
+		a.sweepRemoteButton()
 	case input.KeySoft6:
+		a.startRemoteLearn()
+	case input.KeyR:
 		a.renameRemoteButton()
+	case input.Key1:
+		a.Remote.AC.Active = true
 	case input.KeySoft7, input.KeyDel:
 		a.requestRemoteDel()
 	case input.KeySoft8:
 		a.handleRemoteSoft8()
 	case input.KeyEsc:
+		if a.cancelCarrierSweep() {
+			return false
+		}
 		if a.Deps.TX != nil {
 			a.Deps.TX.CancelCurrent()
 		}
@@ -117,6 +121,14 @@ func (a *App) handleRemoteKey(act input.KeyAction) bool {
 		return false
 	}
 	return false
+}
+
+func (a *App) sweepRemoteButton() {
+	if !a.Remote.Loaded || a.Remote.Cursor >= len(a.Remote.Entry.Signals) {
+		a.SetToast("No signal to sweep", fb.ColAmber)
+		return
+	}
+	a.startCarrierSweep(a.Remote.Entry.Signals[a.Remote.Cursor])
 }
 
 func (a *App) handleRemoteConfirmDel(act input.KeyAction) bool {
@@ -227,12 +239,7 @@ func (a *App) handleRemoteSoft8() {
 		a.SetToast("Promoted to USER: "+truncate(promoted.Name, 16), fb.ColEmerald)
 		return
 	}
-	if len(a.Saved.UserEntries) == 0 {
-		a.SetToast("No other USER remotes", fb.ColAmber)
-		return
-	}
-	a.Remote.FileIdx = (a.Remote.FileIdx + 1) % len(a.Saved.UserEntries)
-	a.openRemoteEntry(a.Saved.UserEntries[a.Remote.FileIdx])
+	a.Remote.AC.Active = true
 }
 
 func (a *App) persistActiveRemote(okMsg string) {
@@ -251,6 +258,10 @@ func (a *App) persistActiveRemote(okMsg string) {
 }
 
 func (a *App) renderRemote(c *fb.Canvas) {
+	if a.Remote.AC.Active {
+		a.renderAC(c)
+		return
+	}
 	a.drawRemoteHeader(c)
 	if !a.Remote.Loaded || len(a.Remote.Entry.Signals) == 0 {
 		c.DrawTextCentered(fb.ScreenW/2, 74, "No remote loaded (open in SAVED)", fb.ColMuted, 1)
@@ -261,11 +272,11 @@ func (a *App) renderRemote(c *fb.Canvas) {
 	if a.Remote.ConfirmDel {
 		drawConfirmBanner(c, "Delete button? [Enter=YES Esc=NO]")
 	}
-	s8 := "NEXT"
+	s8 := "AC"
 	if a.Remote.Loaded && a.Remote.Entry.ReadOnly {
 		s8 = "PROMO"
 	}
-	a.drawNavBar(c, [5]string{"SEND", "LEARN+", "RENAME", "DEL", s8})
+	a.drawNavBar(c, [5]string{"SEND", "SWEEP", "LEARN+", "DEL", s8})
 }
 
 func (a *App) drawRemoteHeader(c *fb.Canvas) {
@@ -303,14 +314,9 @@ func (a *App) drawRemoteGrid(c *fb.Canvas) {
 func (a *App) drawRemoteTile(c *fb.Canvas, idx, row, col int, sig irfile.IRSignal) {
 	x := 6 + col*(remoteTileW+8)
 	y := 34 + row*(remoteTileH+2)
-	focused := idx == a.Remote.Cursor
-	bg := fb.ColSurface
-	border := fb.ColBorder
-	fg := fb.ColFg
-	if focused {
-		bg = fb.ColSurfaceAlt
-		border = fb.ColCyan
-		fg = fb.ColCyan
+	bg, border, fg := fb.ColSurface, fb.ColBorder, fb.ColFg
+	if idx == a.Remote.Cursor {
+		bg, border, fg = fb.ColSurfaceAlt, fb.ColCyan, fb.ColCyan
 		if a.Remote.TXActive && a.Remote.LastTXBtn == sig.Name {
 			border = fb.ColEmerald
 		}
@@ -322,7 +328,8 @@ func (a *App) drawRemoteTile(c *fb.Canvas, idx, row, col int, sig irfile.IRSigna
 	if proto == "" {
 		proto = "RAW"
 	}
-	c.DrawText(x+remoteTileW-len(truncate(proto, 6))*6-4, y+7, truncate(proto, 6), fb.ColMuted, 1)
+	p := truncate(proto, 6)
+	c.DrawText(x+remoteTileW-len(p)*6-4, y+7, p, fb.ColMuted, 1)
 }
 
 func (a *App) drawRemoteFooter(c *fb.Canvas) {

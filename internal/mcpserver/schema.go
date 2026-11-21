@@ -1,6 +1,6 @@
 package mcpserver
 
-// toolDefinitions is the Single Source of Truth (SSOT) for all 21 MCP tools.
+// toolDefinitions is the Single Source of Truth (SSOT) for all 23 MCP tools.
 func toolDefinitions() []toolDefinition {
 	return []toolDefinition{
 		{
@@ -182,6 +182,34 @@ func toolDefinitions() []toolDefinition {
 				"files":   arrStrProp("Non-empty list of relative .ir filenames inside the pack"),
 				"confirm": boolProp("Must be true to delete pack files"),
 			}, []string{"pack", "files", "confirm"}),
+		},
+		{
+			Name:        "ir_send_ac_state",
+			Description: "Encode and transmit a checksummed parametric AC state frame (Gree, Midea, Daikin, LG_AC, Samsung_AC, Mitsubishi). Requires confirm_ir: true.",
+			InputSchema: objSchema(map[string]any{
+				"confirm_ir": boolProp("Must be true to emit IR signals"),
+				"brand":      enumProp("AC protocol family", []string{"Gree", "Midea", "Daikin", "LG_AC", "Samsung_AC", "Mitsubishi"}),
+				"power":      boolProp("AC power state (true=ON, false=OFF)"),
+				"mode":       enumProp("HVAC operating mode", []string{"COOL", "HEAT", "DRY", "FAN", "AUTO"}),
+				"temp_c":     intProp("Target temperature in Celsius (16..30)", 16, 30),
+				"fan":        enumProp("Fan speed (default AUTO)", []string{"AUTO", "LOW", "MED", "HIGH"}),
+				"swing":      boolProp("Vertical vane swing enabled (default false)"),
+				"save_as":    strProp("Optional UserLibrary .ir filename to persist the encoded AC button"),
+			}, []string{"confirm_ir", "brand", "power", "mode", "temp_c"}),
+		},
+		{
+			Name:        "ir_sweep_carrier",
+			Description: "Rapidly resend an IR signal across multiple carrier frequencies (default 36/38/40/56 kHz) with guaranteed 38 kHz / 33% restoration. Requires confirm_ir: true.",
+			InputSchema: objSchema(map[string]any{
+				"confirm_ir":     boolProp("Must be true to emit IR signals"),
+				"remote_name":    strProp("Optional remote filename (with button_name)"),
+				"button_name":    strProp("Optional button name inside remote_name"),
+				"pack":           strProp("Optional DatabasePack ID (including GEN:TV-B-Gone)"),
+				"pulses":         arrIntProp("Optional alternating signed +mark/-space microsecond pulse durations"),
+				"frequencies_hz": arrIntProp("Optional carrier frequencies in Hz (36000..56000, max 8; default [36000,38000,40000,56000])"),
+				"duty_pct":       intProp("Duty cycle percent (25..50, default 33)", 25, 50),
+				"gap_ms":         intProp("Inter-step delay in milliseconds (40..1000, default 80)", 40, 1000),
+			}, []string{"confirm_ir"}),
 		},
 	}
 }

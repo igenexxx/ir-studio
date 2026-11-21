@@ -197,6 +197,22 @@ func (b *stubBackend) TransmitSignal(_ context.Context, sig irfile.IRSignal, rep
 	}
 	return 2 * time.Millisecond, nil
 }
+func (b *stubBackend) SweepCarrier(_ context.Context, sig irfile.IRSignal, freqs []uint32, dutyPct uint32, _ time.Duration) (lirc.SweepReport, error) {
+	b.txCalls.Add(1)
+	if len(freqs) == 0 {
+		freqs = lirc.SweepCarrierPresets[:]
+	}
+	steps := make([]lirc.SweepStepResult, len(freqs))
+	for i, hz := range freqs {
+		steps[i] = lirc.SweepStepResult{FreqHz: hz, DutyPct: dutyPct, Sent: true}
+	}
+	return lirc.SweepReport{
+		SignalName:      sig.Name,
+		Steps:           steps,
+		RestoredFreqHz:  lirc.DefaultCarrierHz,
+		RestoredDutyPct: lirc.DefaultDutyPct,
+	}, nil
+}
 
 func TestServeStdioDisabledGate(t *testing.T) {
 	var out bytes.Buffer
@@ -270,8 +286,8 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[2]), &listResp); err != nil {
 		t.Fatalf("unmarshal tools/list: %v", err)
 	}
-	if len(listResp.Result.Tools) != 21 {
-		t.Fatalf("expected 21 tools, got %d", len(listResp.Result.Tools))
+	if len(listResp.Result.Tools) != 23 {
+		t.Fatalf("expected 23 tools, got %d", len(listResp.Result.Tools))
 	}
 	seen := make(map[string]bool, len(listResp.Result.Tools))
 	for _, td := range listResp.Result.Tools {
@@ -572,9 +588,9 @@ func TestLibraryAndSourcesTools(t *testing.T) {
 		t.Fatalf("ir_read_remote failed: %+v", out)
 	}
 
-	// List databases & Promote twice (collision-safe).
+	// List databases (GEN:TV-B-Gone + acs) & Promote twice (collision-safe).
 	res, out = callTool(t, env.srv, "ir_list_databases", map[string]any{})
-	if res.IsError || len(out["packs"].([]any)) != 1 {
+	if res.IsError || len(out["packs"].([]any)) != 2 {
 		t.Fatalf("ir_list_databases failed: %+v", out)
 	}
 	res, p1 := callTool(t, env.srv, "ir_promote_remote", map[string]any{"pack": "acs", "remote_name": "Daikin.ir"})

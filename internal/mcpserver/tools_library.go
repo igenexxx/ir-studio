@@ -183,6 +183,16 @@ func (s *Server) toolListDatabases(_ context.Context, _ json.RawMessage) (toolRe
 	sourceURLs := s.sourceURLMap()
 	items := make([]map[string]any, 0, len(packs))
 	for _, p := range packs {
+		if p.Virtual {
+			items = append(items, map[string]any{
+				"id":           p.ID,
+				"remote_count": p.FileCount,
+				"virtual":      true,
+				"last_synced":  "",
+				"source_url":   "embedded://tv-b-gone",
+			})
+			continue
+		}
 		lastSynced := ""
 		if st, err := dbsync.LoadSyncState(p.Dir); err == nil && !st.LastSync.IsZero() {
 			lastSynced = st.LastSync.UTC().Format(time.RFC3339)

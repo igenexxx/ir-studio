@@ -15,9 +15,13 @@ import (
 	"ir-studio/internal/irfile"
 )
 
-// PromoteToUser copies a complete .ir remote from a read-only DatabasePack into
-// UserDir without modifying the source pack or overwriting existing user remotes.
+// PromoteToUser copies a complete .ir remote from a read-only DatabasePack or
+// virtual pack into UserDir without modifying the source pack or overwriting
+// existing user remotes.
 func (s *Store) PromoteToUser(entry RemoteEntry, dstName string) (RemoteEntry, error) {
+	if IsVirtualPack(entry.SourcePack) {
+		return s.promoteVirtualToUser(entry, dstName)
+	}
 	if isInsideDir(s.UserDir, entry.FullPath) {
 		return RemoteEntry{}, ErrAlreadyInUserLibrary
 	}
@@ -48,6 +52,34 @@ func (s *Store) PromoteToUser(entry RemoteEntry, dstName string) (RemoteEntry, e
 		return RemoteEntry{}, err
 	}
 	return buildPromotedEntry(finalName, dstPath, data, parsed), nil
+}
+
+func (s *Store) promoteVirtualToUser(entry RemoteEntry, dstName string) (RemoteEntry, error) {
+	loaded, err := lookupVirtualRemote(entry)
+	if err != nil {
+		return RemoteEntry{}, err
+	}
+	if len(loaded.Signals) == 0 {
+		return RemoteEntry{}, fmt.Errorf("library: empty virtual remote %s: %w", loaded.Name, ErrNotFound)
+	}
+	if err := os.MkdirAll(s.UserDir, dataDirPerm); err != nil {
+		return RemoteEntry{}, fmt.Errorf("library: mkdir user dir: %w", err)
+	}
+	baseName := strings.TrimSpace(dstName)
+	if baseName == "" {
+		baseName = loaded.RelPath
+		if baseName == "" {
+			baseName = loaded.Name + ".ir"
+		}
+	}
+	finalName, _, err := s.pickCollisionSafeName(baseName)
+	if err != nil {
+		return RemoteEntry{}, err
+	}
+	return s.SaveUserRemote(finalName, &irfile.IRFile{
+		Version: irfile.SupportedVersion,
+		Signals: loaded.Signals,
+	})
 }
 
 // PromoteSignalToUser saves a single winning IRSignal as a new user remote.

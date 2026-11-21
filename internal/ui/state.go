@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+
 	"ir-studio/internal/config"
 	"ir-studio/internal/dbsync"
 	"ir-studio/internal/irfile"
@@ -42,6 +44,15 @@ func (t Tab) PillLabel() string {
 	}
 }
 
+// SweepState tracks an active asynchronous multi-carrier TX sweep.
+type SweepState struct {
+	Active  bool
+	StepIdx int
+	Total   int
+	FreqHz  uint32
+	Cancel  context.CancelFunc
+}
+
 // ChromeState holds shared header, modal, toast, and device indicator state.
 type ChromeState struct {
 	Tab         Tab
@@ -54,6 +65,7 @@ type ChromeState struct {
 	DeviceLabel string
 	Ambient     irml.AmbientSnapshot
 	TickCount   uint64
+	Sweep       SweepState
 }
 
 // ACDiffState holds AC State-Frame Inspector baseline/current diff state.
@@ -80,6 +92,18 @@ type RXState struct {
 	CarrierIdx   int
 }
 
+// ACControlState holds the interactive Smart AC State-Frame Controller sub-view.
+type ACControlState struct {
+	Active   bool
+	BrandIdx int
+	ModeIdx  int
+	FanIdx   int
+	TempC    int
+	Power    bool
+	Swing    bool
+	Reg      *irfile.ACRegistry
+}
+
 // RemoteState holds the Virtual Remote Deck view state for the active .ir file.
 type RemoteState struct {
 	Entry        library.RemoteEntry
@@ -92,6 +116,7 @@ type RemoteState struct {
 	LearnPending bool
 	FileIdx      int
 	RepeatCount  int
+	AC           ACControlState
 }
 
 // ProbeState holds the Universal Power-Off / Action Probe UI state.
@@ -147,11 +172,21 @@ type SettingsState struct {
 	ConfirmDelPack bool
 }
 
+type sweepAsync struct {
+	stepIdx   int
+	total     int
+	freqHz    uint32
+	done      bool
+	cancelled bool
+	err       error
+}
+
 type asyncEvent struct {
-	kind       string
-	probeSnap  *library.ProbeSnapshot
-	macroProg  *library.MacroProgress
-	syncDone   bool
-	syncMsg    string
-	syncErr    error
+	kind      string
+	probeSnap *library.ProbeSnapshot
+	macroProg *library.MacroProgress
+	sweep     *sweepAsync
+	syncDone  bool
+	syncMsg   string
+	syncErr   error
 }

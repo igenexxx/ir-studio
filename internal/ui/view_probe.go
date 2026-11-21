@@ -224,6 +224,9 @@ func (a *App) probePackLabel() string {
 	if len(a.Probe.Packs) == 0 || a.Probe.Packs[a.Probe.PackIdx] == "" {
 		return "USER"
 	}
+	if a.Probe.Packs[a.Probe.PackIdx] == library.VirtualPackTVBGone {
+		return "GEN:TVBG"
+	}
 	return a.Probe.Packs[a.Probe.PackIdx]
 }
 

@@ -51,11 +51,12 @@ type RemoteEntry struct {
 	Signals     []irfile.IRSignal
 }
 
-// DatabasePack describes a read-only external .ir pack directory.
+// DatabasePack describes a read-only external or compiled-in virtual .ir pack.
 type DatabasePack struct {
 	ID        string
 	Dir       string
 	FileCount int
+	Virtual   bool
 }
 
 // Store manages strict storage separation between UserLibrary (RW) and DatabasePacks (RO).
@@ -88,37 +89,50 @@ func (s *Store) ListUserRemotes() ([]RemoteEntry, error) {
 	return listIRDir(s.UserDir, "", false)
 }
 
-// ListDatabasePacks enumerates pack subdirectories inside DatabasesDir.
+// ListDatabasePacks enumerates compiled-in virtual packs followed by pack
+// subdirectories inside DatabasesDir.
 func (s *Store) ListDatabasePacks() ([]DatabasePack, error) {
+	packs := []DatabasePack{{
+		ID:        VirtualPackTVBGone,
+		FileCount: TVBGoneCodeCount,
+		Virtual:   true,
+	}}
 	entries, err := os.ReadDir(s.DatabasesDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []DatabasePack{}, nil
+			return packs, nil
 		}
 		return nil, fmt.Errorf("library: list packs: %w", err)
 	}
-	packs := make([]DatabasePack, 0, len(entries))
+	diskPacks := make([]DatabasePack, 0, len(entries))
 	for _, de := range entries {
 		if !de.IsDir() || strings.HasPrefix(de.Name(), ".") {
 			continue
 		}
 		packDir := filepath.Join(s.DatabasesDir, de.Name())
-		packs = append(packs, DatabasePack{
+		diskPacks = append(diskPacks, DatabasePack{
 			ID:        de.Name(),
 			Dir:       packDir,
 			FileCount: countIRFiles(packDir),
 		})
 	}
-	slices.SortFunc(packs, func(a, b DatabasePack) int {
+	slices.SortFunc(diskPacks, func(a, b DatabasePack) int {
 		return cmp.Compare(strings.ToLower(a.ID), strings.ToLower(b.ID))
 	})
-	return packs, nil
+	return append(packs, diskPacks...), nil
 }
 
-// ListPackRemotes enumerates .ir files inside DatabasesDir/<pack> lazily.
+// ListPackRemotes enumerates .ir files inside DatabasesDir/<pack> lazily,
+// or returns embedded entries for compiled-in virtual packs.
 func (s *Store) ListPackRemotes(pack string) ([]RemoteEntry, error) {
+	if IsVirtualPack(pack) {
+		return TVBGoneRemotes(), nil
+	}
 	if err := validateBareName(pack); err != nil {
 		return nil, err
+	}
+	if strings.HasPrefix(pack, VirtualPackPrefix) {
+		return nil, fmt.Errorf("%q: %w", pack, ErrInvalidName)
 	}
 	packDir, err := sandboxJoin(s.DatabasesDir, pack)
 	if err != nil {
@@ -129,6 +143,9 @@ func (s *Store) ListPackRemotes(pack string) ([]RemoteEntry, error) {
 
 // LoadRemote lazily parses entry's .ir file and populates Signals, ButtonCount, and Protocols.
 func (s *Store) LoadRemote(entry RemoteEntry) (RemoteEntry, error) {
+	if IsVirtualPack(entry.SourcePack) {
+		return lookupVirtualRemote(entry)
+	}
 	root := s.UserDir
 	if entry.ReadOnly || entry.SourcePack != "" {
 		root = s.DatabasesDir
@@ -252,6 +269,9 @@ func (s *Store) BatchDeleteUserRemotes(names []string) (int, error) {
 // DeleteDatabaseRemote removes a single .ir file inside DatabasesDir/<pack>/ when
 // explicitly requested by Manage DB Sources / DBSync / PROBE batch deletion.
 func (s *Store) DeleteDatabaseRemote(pack, relPath string) error {
+	if IsVirtualPack(pack) {
+		return ErrReadOnlyPack
+	}
 	if err := validateBareName(pack); err != nil {
 		return err
 	}

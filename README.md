@@ -8,9 +8,9 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies, zero `lir
 
 ## Features
 
-- **Live IR Capture, Oscilloscope & ML Denoiser (`RX`):** Streams `/dev/lirc*` `LIRC_MODE_MODE2` pulses off the UI thread, decodes `NEC`, `NECext`, `Samsung32`, `RC5`, `RC6`, `SIRC`, and `Kaseikyo`, monitors live **Ambient IR Interference** (`CLEAN` / `MODERATE` / `SATURATED`), rescues jittery captures with the **1D K-Means IR Pulse Denoiser (`ML-CLEAN`)**, and matches single buttons against `Flipper-IRDB` via **8D IR Fingerprint k-NN**.
-- **Virtual Remote Deck (`REMOTE`):** 2-column scrollable button pad for any `.ir` file with hold-to-repeat transmission, in-place `LEARN+`, `RENAME`, and `DEL` authoring for `USER` remotes, and one-key `PROMOTE` from read-only database packs.
-- **Universal Power-Off & Brand Sweep (`PROBE`):** Steps through read-only external `.ir` packs (`~/ir-studio/databases/<pack>/`) with Action Filters (`Power`, `Cool`, `Mute`), **Smart Probe Ranking (`R`)**, instant `STOP` (`4` / `Space`), 12-slot `>` / `*` rewind markers, single-shot `5 TRY`, and one-key `6 SAVE` (`PromoteToUser`) of the full winning remote.
+- **Live IR Capture, Oscilloscope, Carrier Sweeper & ML Denoiser (`RX`):** Streams `/dev/lirc*` `LIRC_MODE_MODE2` pulses off the UI thread, decodes `NEC`, `NECext`, `Samsung32`, `RC5`, `RC6`, `SIRC`, and `Kaseikyo`, monitors live **Ambient IR Interference** (`CLEAN` / `MODERATE` / `SATURATED`), rescues jittery captures with the **1D K-Means IR Pulse Denoiser (`ML-CLEAN`)**, sweeps held captures across `36 / 38 / 40 / 56 kHz` (`5 SWEEP` / `R`), and matches single buttons against `Flipper-IRDB` via **8D IR Fingerprint k-NN**.
+- **Virtual Remote Deck & Smart AC Controller (`REMOTE` + `AC`):** 2-column scrollable button pad for any `.ir` file with hold-to-repeat transmission, one-tap **Carrier Frequency Sweeper (`5 SWEEP`)**, in-place `LEARN+` (`6`), `RENAME` (`R`), and `DEL` (`7`) authoring for `USER` remotes, one-key `PROMO` from read-only database packs, plus an interactive **Smart AC State-Frame Controller (`1` or `8 AC`)** with checksummed parametric encoders for `Gree`, `Midea`, `Daikin`, `LG_AC`, `Samsung_AC`, and `Mitsubishi`.
+- **Universal Power-Off, Built-in TV-B-Gone & Brand Sweep (`PROBE`):** Ships with a compiled-in **`GEN:TV-B-Gone`** virtual pack containing the top-100 offline universal `Power` codes across major TVs, Projectors, and Soundbars (ready immediately before `--sync`), plus synced read-only `.ir` packs (`~/ir-studio/databases/<pack>/`), Action Filters (`Power`, `Cool`, `Mute`), **Smart Probe Ranking (`R`)**, instant `STOP` (`4` / `Space`), 12-slot `>` / `*` rewind markers, single-shot `5 TRY`, and one-key `6 SAVE` (`PromoteToUser`).
 - **Dual-Scope `.ir` Library (`SAVED`):** Strictly isolates your read-write **User Library** (`~/ir-studio/remotes/`) from read-only **Database Packs** (`~/ir-studio/databases/<pack>/`). Supports `[x]` multi-select (`Space`/`1`/`D`), 2-step batch `DEL`, and ML-powered **`PURGE`** for noise-only captures.
 - **Multi-Device IR Macros (`MACRO`):** Chains commands across multiple User Library remotes with configurable `50–10000 ms` delays (`~/.config/ir-studio/macros.json`, `0600`) and instant mid-run `context.Context` cancellation.
 - **Hardware, DB Sync & Opt-In MCP (`SET`):** Configure `/dev/lirc*` device, TX carrier (`36 / 38 / 40 / 56 kHz`) and duty cycle (`33% / 50%`), manage and incrementally sync HTTPS `Flipper-IRDB` sources (`ETag`/`SHA` delta sync), and toggle the opt-in **MCP Server**.
@@ -36,9 +36,10 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies, zero `lir
 
 | Tab | `4` | `5` | `6` | `7` | `8` |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`RX`** | `LEARN` / `STOP` | `CLEAN` (ML) | `DIFF` (AC) | `SAVE` | `CARR` (36–56k) |
-| **`REMOTE`** | `SEND` | `LEARN+` | `RENAME` | `DEL` | `NEXT` / `PROMO` |
-| **`PROBE`** | `RUN` / `STOP` | `TRY` | `SAVE` | `ACT` (Filter) | `PACK` |
+| **`RX`** | `HOLD` / `LEARN` | `CLEAN` / `SWEEP` | `DIFF` (AC) | `SAVE` | `CARR` (36–56k) |
+| **`REMOTE`** | `SEND` | `SWEEP` (36–56k) | `LEARN+` | `DEL` | `AC` / `PROMO` |
+| **`REMOTE → AC`** | `PWR` | `FAN` | `SWING` | `SEND` | `SAVE` (`AC_*.ir`) |
+| **`PROBE`** | `RUN` / `STOP` | `TRY` | `SAVE` | `ACT` (Filter) | `PACK` (`GEN:TVBG`) |
 | **`SAVED`** | `OPEN` | `SEND` | `PROMO` / `PURGE` | `DEL` | `SRC` (User/DB) |
 | **`MACRO`** | `RUN` / `STOP` | `NEW` | `ADD` | `DEL` | `EDIT` |
 | **`SET`** | `TOGGLE` | `SYNC` | `ADD` (Src) | `DEL` (Src) | `SAVE` |
@@ -71,15 +72,15 @@ The pure-Go stdio **MCP Server** is **disabled by default** (`~/.config/ir-studi
 ssh <cardputer-host> /usr/share/APPLaunch/bin/ir-studio --mcp
 ```
 
-### Exposed MCP Tools (21 Tools)
+### Exposed MCP Tools (23 Tools)
 
 | Group | Tool Names | Safety Gates |
 | :--- | :--- | :--- |
 | **Status & RX** | `ir_get_status`, `ir_learn_signal` | Serialized via `lircMu`; `context.Context` timeout (`500–15000 ms`) |
-| **TX & Macros** | `ir_transmit_button`, `ir_run_macro`, `ir_list_macros` | TX tools require **`confirm_ir: true`**; repeat cap `<= 5`; macro cap `<= 30 s` |
+| **TX, AC, Sweep & Macros** | `ir_transmit_button`, `ir_send_ac_state`, `ir_sweep_carrier`, `ir_run_macro`, `ir_list_macros` | TX/AC/Sweep tools require **`confirm_ir: true`**; repeat cap `<= 5`; macro cap `<= 30 s`; guaranteed `38 kHz / 33%` carrier restore |
 | **On-Device ML** | `ir_analyze_pulses`, `ir_classify_signal`, `ir_match_fingerprint`, `ir_rank_probe_pack`, `ir_purge_noise` | `ir_purge_noise` defaults to **`dry_run: true`**; deletion requires `confirm: true` (User Library only) |
-| **Library & Packs** | `ir_list_remotes`, `ir_read_remote`, `ir_save_remote`, `ir_delete_remote`, `ir_list_databases`, `ir_promote_remote` | Path-sandboxed (`1 MiB` cap); `ir_delete_remote` requires **`confirm: true`** (User Library only) |
-| **DB Sources** | `ir_list_sources`, `ir_add_source`, `ir_remove_source`, `ir_sync_sources`, `ir_delete_pack_files` | HTTPS-only URLs; `ir_remove_source` & `ir_delete_pack_files` require **`confirm: true`** |
+| **Library & Packs** | `ir_list_remotes`, `ir_read_remote`, `ir_save_remote`, `ir_delete_remote`, `ir_list_databases`, `ir_promote_remote` | Path-sandboxed (`1 MiB` cap); includes compiled-in read-only `GEN:TV-B-Gone` (`virtual: true`); `ir_delete_remote` requires **`confirm: true`** |
+| **DB Sources** | `ir_list_sources`, `ir_add_source`, `ir_remove_source`, `ir_sync_sources`, `ir_delete_pack_files` | HTTPS-only URLs; `ir_remove_source` & `ir_delete_pack_files` require **`confirm: true`** (virtual packs rejected) |
 
 ---
 

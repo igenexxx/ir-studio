@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ir-studio/internal/dbsync"
+	"ir-studio/internal/library"
 )
 
 func (s *Server) toolListSources(_ context.Context, _ json.RawMessage) (toolResult, *rpcError) {
@@ -250,6 +251,9 @@ func (s *Server) toolDeletePackFiles(_ context.Context, raw json.RawMessage) (to
 	}
 	if len(args.Files) == 0 {
 		return errResult("files must be a non-empty list"), nil
+	}
+	if library.IsVirtualPack(args.Pack) {
+		return errResult(library.ErrReadOnlyPack.Error()), nil
 	}
 	packDir, err := s.resolvePackDir(args.Pack)
 	if err != nil {

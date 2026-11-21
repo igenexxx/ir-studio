@@ -69,35 +69,18 @@ func NewApp(deps Deps) *App {
 }
 
 func (a *App) initState(settings config.Settings) {
-	a.Chrome = ChromeState{
-		Tab:         TabRX,
-		SimMode:     a.Deps.SimMode,
-		DeviceLabel: a.Deps.DeviceLabel,
-	}
-	a.RX = RXState{
-		Learning:   true,
-		DenoiseOn:  true,
-		CarrierIdx: carrierPresetIdx(settings.CarrierHz),
-	}
-	a.Remote = RemoteState{RepeatCount: 1}
+	a.Chrome = ChromeState{Tab: TabRX, SimMode: a.Deps.SimMode, DeviceLabel: a.Deps.DeviceLabel}
+	a.RX = RXState{Learning: true, DenoiseOn: true, CarrierIdx: carrierPresetIdx(settings.CarrierHz)}
+	a.Remote = RemoteState{RepeatCount: 1, AC: newACControlState()}
 	a.Probe = ProbeState{IntervalIdx: intervalPresetIdx(settings.ProbeIntervalMs)}
-	a.Saved = SavedState{
-		ScopeUser: true,
-		Selected:  make(map[string]bool),
-	}
-	a.Macro = MacroState{
-		File:       &config.MacroFile{Version: config.MacroVersion},
-		MacrosPath: a.Deps.MacrosPath,
-	}
-	a.Set = SettingsState{
-		Settings:    settings,
-		ConfigPath:  a.Deps.ConfigPath,
-		SourcesPath: a.Deps.SourcesPath,
-	}
+	a.Saved = SavedState{ScopeUser: true, Selected: make(map[string]bool)}
+	a.Macro = MacroState{File: &config.MacroFile{Version: config.MacroVersion}, MacrosPath: a.Deps.MacrosPath}
+	a.Set = SettingsState{Settings: settings, ConfigPath: a.Deps.ConfigPath, SourcesPath: a.Deps.SourcesPath}
 }
 
-// Close cleanly cancels any background probe or macro sessions owned by UI.
+// Close cleanly cancels any background probe, sweep, or macro sessions owned by UI.
 func (a *App) Close() {
+	a.cancelCarrierSweep()
 	if a.Probe.Session != nil {
 		a.Probe.Session.Pause()
 	}
@@ -277,6 +260,9 @@ func (a *App) drainAsync() {
 }
 
 func (a *App) applyAsyncEvent(ev asyncEvent) {
+	if ev.sweep != nil {
+		a.applySweepEvent(ev.sweep)
+	}
 	if ev.probeSnap != nil {
 		a.Probe.Snap = *ev.probeSnap
 		if ev.probeSnap.State == library.ProbeDone {

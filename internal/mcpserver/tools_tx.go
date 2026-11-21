@@ -251,6 +251,21 @@ func (s *Server) loadRemoteEntry(name, pack string) (library.RemoteEntry, error)
 		}
 		return s.store.LoadUserRemote(name)
 	}
+	if library.IsVirtualPack(pack) {
+		if err := ValidateSafeName(name); err != nil {
+			return library.RemoteEntry{}, err
+		}
+		remotes, err := s.store.ListPackRemotes(pack)
+		if err != nil {
+			return library.RemoteEntry{}, err
+		}
+		for _, r := range remotes {
+			if r.RelPath == name || r.Name == name {
+				return s.store.LoadRemote(r)
+			}
+		}
+		return library.RemoteEntry{}, fmt.Errorf("remote %q not found in pack %q", name, pack)
+	}
 	if err := ValidateSafeName(pack); err != nil {
 		return library.RemoteEntry{}, err
 	}
