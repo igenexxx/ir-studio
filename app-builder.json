@@ -1,0 +1,40 @@
+{
+  "app_name": "IR Studio",
+  "package_name": "ir-studio",
+  "bin_name": "ir-studio",
+  "version": "0.1.0",
+  "store": {
+    "summary": "38 kHz Infrared transceiver studio, on-device ML denoiser, universal probe & .ir library",
+    "description": "IR Studio is a pure-Go 38 kHz Infrared laboratory for M5Stack CardputerZero (/dev/lirc*). Capture and decode NEC, NECext, Samsung32, RC5, RC6, SIRC, Kaseikyo, and RAW signals; clean noisy captures with 0-alloc 1D K-Means clustering; classify TV/AC/Noise frames; inspect stateful AC diffs; run Universal Power-Off probes with Smart Rank and 12-slot rewind; manage Flipper .ir remotes and multi-device macros; and expose all capabilities via opt-in stdio MCP over SSH.",
+    "icon": "assets/images/ir-studio-icon.png",
+    "screenshots": [
+      "assets/screenshots/rx.png",
+      "assets/screenshots/remote.png",
+      "assets/screenshots/probe.png",
+      "assets/screenshots/saved.png",
+      "assets/screenshots/macro.png",
+      "assets/screenshots/set.png",
+      "assets/screenshots/help.png"
+    ],
+    "categories": [
+      "Radio & Comms",
+      "Hardware & IoT"
+    ],
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": true,
+      "background_service": false,
+      "external_display": false
+    },
+    "author": {
+      "display_name": "Zhenya",
+      "github": "igenexxx"
+    },
+    "source_repo": "https://github.com/igenexxx/ir-studio",
+    "license": "MIT",
+    "share_code": "IRST"
+  }
+}
