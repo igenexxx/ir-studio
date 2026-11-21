@@ -4,6 +4,9 @@ Native 38 kHz Infrared transceiver studio, multi-protocol encoder/decoder, Flipp
 
 Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies, zero `lircd`/`ir-ctl` subprocesses) with automatic **`SIM`** fallback when no `/dev/lirc*` hardware is attached.
 
+> [!CAUTION]
+> **Legal & Responsible Use Disclaimer:** This software is provided strictly for **educational, research, diagnostics, and authorized control** of infrared appliances and hardware that you own or have explicit permission to operate. Unauthorized disruption, tampering, or interference with third-party equipment, public displays, or commercial/industrial systems is strictly prohibited and may be punishable by law. Provided **"AS IS"** without warranty of any kind; use entirely at your own risk.
+
 ---
 
 ## Features
