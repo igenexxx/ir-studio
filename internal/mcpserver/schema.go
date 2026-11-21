@@ -1,8 +1,8 @@
 package mcpserver
 
-// toolDefinitions is the Single Source of Truth (SSOT) for all 28 MCP tools.
+// toolDefinitions is the Single Source of Truth (SSOT) for all 30 MCP tools.
 func toolDefinitions() []toolDefinition {
-	return []toolDefinition{
+	defs := []toolDefinition{
 		{
 			Name:        "ir_get_status",
 			Description: "Return hardware mode (LIRC/SIM), carrier settings, ambient IR noise, library/macro counts, and MCP status.",
@@ -261,6 +261,7 @@ func toolDefinitions() []toolDefinition {
 			}, []string{"confirm_ir"}),
 		},
 	}
+	return append(defs, labToolDefinitions()...)
 }
 
 func objSchema(props map[string]any, required []string) map[string]any {

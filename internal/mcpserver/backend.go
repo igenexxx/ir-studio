@@ -36,6 +36,8 @@ type IRBackend interface {
 	TransmitSignal(ctx context.Context, sig irfile.IRSignal, repeat int, carrier irfile.CarrierSpec) (time.Duration, error)
 	SweepCarrier(ctx context.Context, sig irfile.IRSignal, freqs []uint32, dutyPct uint32, gap time.Duration) (lirc.SweepReport, error)
 	TripwireProbe(ctx context.Context, cfg lirc.TripwireConfig) (lirc.TripwireReading, error)
+	MeasureFlicker(ctx context.Context, windowMs int) (irml.FlickerReport, error)
+	MeasureRPM(ctx context.Context, blades int, windowMs int) (irml.RPMReport, error)
 }
 
 // HardwareBackend serializes all LIRC/SIM hardware operations with lircMu.
@@ -216,6 +218,26 @@ func (b *HardwareBackend) TripwireProbe(ctx context.Context, cfg lirc.TripwireCo
 		return lirc.TripwireReading{}, errors.New("LIRC transceiver not initialized")
 	}
 	return lirc.TripwireProbe(ctx, b.xcvr, cfg)
+}
+
+// MeasureFlicker runs an RX-only PWM flicker measurement under lircMu (TX strictly off).
+func (b *HardwareBackend) MeasureFlicker(ctx context.Context, windowMs int) (irml.FlickerReport, error) {
+	b.lircMu.Lock()
+	defer b.lircMu.Unlock()
+	if b.xcvr == nil {
+		return irml.FlickerReport{}, errors.New("LIRC transceiver not initialized")
+	}
+	return lirc.MeasureFlicker(ctx, b.xcvr, windowMs)
+}
+
+// MeasureRPM runs a 38 kHz optical tachometer measurement under lircMu with guaranteed 38 kHz / 33% restore.
+func (b *HardwareBackend) MeasureRPM(ctx context.Context, blades int, windowMs int) (irml.RPMReport, error) {
+	b.lircMu.Lock()
+	defer b.lircMu.Unlock()
+	if b.xcvr == nil {
+		return irml.RPMReport{}, errors.New("LIRC transceiver not initialized")
+	}
+	return lirc.MeasureRPM(ctx, b.xcvr, blades, windowMs)
 }
 
 func (b *HardwareBackend) encodeToLIRC(sig irfile.IRSignal) ([]uint32, error) {

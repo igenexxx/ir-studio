@@ -233,6 +233,32 @@ func (b *stubBackend) TripwireProbe(_ context.Context, cfg lirc.TripwireConfig) 
 	}, nil
 }
 
+func (b *stubBackend) MeasureFlicker(_ context.Context, _ int) (irml.FlickerReport, error) {
+	return irml.FlickerReport{
+		FreqHz:    120,
+		DutyPct:   50,
+		JitterPct: 0,
+		Periods:   24,
+		Risk:      irml.FlickerHigh,
+		RiskLabel: irml.FlickerHigh.String(),
+	}, nil
+}
+
+func (b *stubBackend) MeasureRPM(_ context.Context, blades, _ int) (irml.RPMReport, error) {
+	b.txCalls.Add(1)
+	if blades <= 0 {
+		blades = 2
+	}
+	return irml.RPMReport{
+		RPM:          float32(3600) / float32(blades),
+		BladeFreqHz:  60,
+		Blades:       blades,
+		StabilityPct: 100,
+		Samples:      20,
+		Valid:        true,
+	}, nil
+}
+
 func TestServeStdioDisabledGate(t *testing.T) {
 	var out bytes.Buffer
 	cfg := ServeConfig{Settings: config.DefaultSettings()} // MCPEnabled == false
@@ -296,7 +322,7 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 		t.Fatalf("unexpected init response: %+v", initResp)
 	}
 
-	// Verify tools/list returns all 28 tools with 1:1 schema-to-handler bijection.
+	// Verify tools/list returns all 30 tools with 1:1 schema-to-handler bijection.
 	var listResp struct {
 		Result struct {
 			Tools []toolDefinition `json:"tools"`
@@ -305,8 +331,8 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[2]), &listResp); err != nil {
 		t.Fatalf("unmarshal tools/list: %v", err)
 	}
-	if len(listResp.Result.Tools) != 28 {
-		t.Fatalf("expected 28 tools, got %d", len(listResp.Result.Tools))
+	if len(listResp.Result.Tools) != 30 {
+		t.Fatalf("expected 30 tools, got %d", len(listResp.Result.Tools))
 	}
 	seen := make(map[string]bool, len(listResp.Result.Tools))
 	for _, td := range listResp.Result.Tools {

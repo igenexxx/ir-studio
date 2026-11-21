@@ -20,6 +20,7 @@ Authoritative SDD specification suite for **IR Studio** (`ir-studio`), a pure-Go
 | **Epic 7** | [07-ui-packaging-and-portal.md](07-ui-packaging-and-portal.md) | `US-07.1` – `US-07.3` | `320×170` LCD UX & 46-key ergonomics, `cmd/shots` visual QA, `.deb` APPLaunch packaging, Learning Portal guides + interactive IR waveform lab + glossary |
 | **Epic 8** | [08-tvbgone-ac-and-sweeper.md](08-tvbgone-ac-and-sweeper.md) | `US-08.1` – `US-08.3` | Built-in offline `GEN:TV-B-Gone` virtual pack (top-100 TV/Projector/Soundbar Power codes), Smart AC State-Frame Controller (`Gree`/`Midea`/`Daikin`/`LG_AC`/`Samsung_AC`/`Mitsubishi` + `ir_send_ac_state`), Carrier Frequency Sweeper (`36/38/40/56 kHz` + `ir_sweep_carrier`) |
 | **Epic 9** | [09-pronto-carrier-modem-and-tripwire.md](09-pronto-carrier-modem-and-tripwire.md) | `US-09.1` – `US-09.5` | Pronto Hex (`0000 006D ...`) lossless import/export, built-in `GEN:TV-Service` discrete/service TV virtual pack, hardware RX carrier measurement (`LIRC_SET_MEASURE_CARRIER_MODE` / `LIRC_MODE2_FREQUENCY`), 38 kHz IR optical data modem (`internal/irmodem`), optical tripwire/proximity sensor (`internal/lirc/tripwire.go`), 5 new MCP tools (28 total) |
+| **Epic 10** | [10-flicker-meter-and-tachometer.md](10-flicker-meter-and-tachometer.md) | `US-10.1` – `US-10.2` | RX-only LED/Screen PWM Flicker Meter with IEEE 1789 eye-safety bands (`internal/irml/flicker.go`), 38 kHz Optical IR RPM Tachometer with blade-division & median outlier filtering (`internal/irml/tachometer.go`, `internal/lirc/tachometer.go`), 2 new MCP tools (`ir_measure_flicker`, `ir_measure_rpm` -> 30 total) |
 
 ## Recommended Implementation Order
 
@@ -30,3 +31,4 @@ Authoritative SDD specification suite for **IR Studio** (`ir-studio`), a pure-Go
 5. **Epic 6 & 7** (`internal/mcpserver` 21 tools + Learning Portal sync)
 6. **Epic 8** (`GEN:TV-B-Gone` virtual pack, parametric AC encoders + `AC` sub-view, Carrier Sweeper, 2 new MCP tools -> 23 total + Learning Portal sync)
 7. **Epic 9** (Pronto Hex codec, `GEN:TV-Service` virtual pack, LIRC hardware RX carrier measure, `internal/irmodem` optical modem, `lirc.TripwireProbe`, 5 new MCP tools -> 28 total + Learning Portal sync)
+8. **Epic 10** (0-alloc PWM Flicker Meter + Optical IR RPM Tachometer in `internal/irml` & `internal/lirc`, 2 new MCP tools -> 30 total + Learning Portal sync)
