@@ -2,7 +2,7 @@
   "app_name": "IR Studio",
   "package_name": "ir-studio",
   "bin_name": "ir-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "store": {
     "summary": "38 kHz Infrared transceiver studio, on-device ML denoiser, universal probe & .ir library",
     "description": "IR Studio is a pure-Go 38 kHz Infrared laboratory for M5Stack CardputerZero (/dev/lirc*). Capture and decode NEC, NECext, Samsung32, RC5, RC6, SIRC, Kaseikyo, and RAW signals; clean noisy captures with 0-alloc 1D K-Means clustering; classify TV/AC/Noise frames; inspect stateful AC diffs; run Universal Power-Off probes with Smart Rank and 12-slot rewind; manage Flipper .ir remotes and multi-device macros; and expose all capabilities via opt-in stdio MCP over SSH.",
