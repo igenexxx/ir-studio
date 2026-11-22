@@ -16,8 +16,8 @@ const (
 	similarityTieEpsilon float32 = 1e-6
 )
 
-// IREmbedding is an L2-normalized 8D timing fingerprint vector for an IR signal.
-type IREmbedding [8]float32
+// IREmbedding is an L2-normalized 32D learned IR timing fingerprint produced by PulseNet-IR.
+type IREmbedding [PulseNetEmbedDim]float32
 
 // FingerprintEntry represents an indexed remote button in IRFingerprintIndex.
 type FingerprintEntry struct {
@@ -43,19 +43,24 @@ type IRFingerprintIndex struct {
 	entries []FingerprintEntry
 }
 
-// ExtractEmbedding computes an L2-normalized 8D IR timing fingerprint from a
-// signed microsecond pulse train and carrier frequency. Zero heap allocations.
+// ExtractEmbedding computes an L2-normalized 32D IR fingerprint from a signed
+// microsecond pulse train using PulseNet-IR Head B.
 func ExtractEmbedding(pulses []int32, carrierHz uint32) IREmbedding {
 	var emb IREmbedding
 	if len(pulses) == 0 {
 		return emb
+	}
+	if m := defaultPulseNet(); m != nil {
+		ws := pulseWS.Get().(*PulseNetWorkspace)
+		res := m.Infer(ws, pulses, carrierHz)
+		pulseWS.Put(ws)
+		return res.Embedding
 	}
 	clusters := ClusterPulses(pulses)
 	if !clusters.Valid {
 		return emb
 	}
 	stats := analyzeFrameStats(pulses)
-
 	freq := carrierHz
 	if freq == 0 {
 		freq = DefaultCarrierHz
@@ -68,7 +73,6 @@ func ExtractEmbedding(pulses []int32, carrierHz uint32) IREmbedding {
 	if stats.activeUs > 0 {
 		duty = float64(stats.markUs) / float64(stats.activeUs)
 	}
-
 	emb[0] = clampUnit(float32(float64(freq)-30000.0) / 30000.0)
 	emb[1] = clampUnit(float32(clusters.HeaderUs / 10000.0))
 	emb[2] = clampUnit(float32(clusters.HeaderSpaceUs / 6000.0))
@@ -77,7 +81,6 @@ func ExtractEmbedding(pulses []int32, carrierHz uint32) IREmbedding {
 	emb[5] = clampUnit(float32(float64(stats.uniqueFramePulses) / 400.0))
 	emb[6] = repeatPatternFeature(stats)
 	emb[7] = clampUnit(float32(duty))
-
 	return normalizeEmbedding(emb)
 }
 
@@ -216,6 +219,9 @@ func matchBetter(a, b MatchResult) bool {
 	}
 	if diff < -similarityTieEpsilon {
 		return false
+	}
+	if a.CarrierDeltaHz != b.CarrierDeltaHz {
+		return a.CarrierDeltaHz < b.CarrierDeltaHz
 	}
 	if c := cmp.Compare(a.RemoteID, b.RemoteID); c != 0 {
 		return c < 0

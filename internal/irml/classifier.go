@@ -44,14 +44,18 @@ func (c SignalClass) String() string {
 // to the on-device 12->24->3 MLP IR signal classifier.
 type IRFeatureVector [mlpInputDim]float32
 
-// Classification holds the on-device MLP prediction and Smart Save Guard flags.
+// Classification holds the on-device PulseNet / MLP prediction and Smart Save Guard flags.
 type Classification struct {
-	Class         SignalClass
-	Confidence    float32
-	IsNoise       bool
-	SaveGuardWarn bool
-	RepeatFrames  int
-	Probs         [mlpOutputDim]float32
+	Class              SignalClass
+	Confidence         float32
+	IsNoise            bool
+	SaveGuardWarn      bool
+	RepeatFrames       int
+	Probs              [mlpOutputDim]float32
+	FineClassID        uint16
+	ProtocolLabel      string
+	ProtocolConfidence float32
+	ModelVersion       uint32
 }
 
 type frameStats struct {
@@ -149,8 +153,8 @@ func ExtractFeatures(pulses []int32, carrierHz uint32) IRFeatureVector {
 	return feat
 }
 
-// ClassifySignal runs zero-allocation feature extraction and 12->24->3 MLP
-// inference to distinguish TV/Remote frames, AC State-Frames, and Ambient Noise.
+// ClassifySignal runs PulseNet-IR INT8 inference (falling back to the legacy MLP if unavailable)
+// to distinguish 24 IR brand/protocol families alongside TV/Remote, AC State-Frame, and Ambient Noise.
 func ClassifySignal(pulses []int32, carrierHz uint32) Classification {
 	if len(pulses) == 0 {
 		return Classification{Class: ClassUnknown}
@@ -158,15 +162,35 @@ func ClassifySignal(pulses []int32, carrierHz uint32) Classification {
 	if len(pulses) < MinValidSignalPulses {
 		probs := [mlpOutputDim]float32{0.02, 0.02, 0.96}
 		return Classification{
-			Class:         ClassAmbientNoise,
-			Confidence:    probs[2],
-			IsNoise:       true,
-			SaveGuardWarn: true,
-			Probs:         probs,
+			Class:              ClassAmbientNoise,
+			Confidence:         probs[2],
+			IsNoise:            true,
+			SaveGuardWarn:      true,
+			Probs:              probs,
+			ProtocolLabel:      "Sunlight_EMI_Noise",
+			ProtocolConfidence: probs[2],
+		}
+	}
+	stats := analyzeFrameStats(pulses)
+	if m := defaultPulseNet(); m != nil {
+		ws := pulseWS.Get().(*PulseNetWorkspace)
+		res := m.Infer(ws, pulses, carrierHz)
+		pulseWS.Put(ws)
+		isNoise := res.CoarseClass == ClassAmbientNoise && res.CoarseConfidence >= NoiseConfidenceThreshold
+		return Classification{
+			Class:              res.CoarseClass,
+			Confidence:         res.CoarseConfidence,
+			IsNoise:            isNoise,
+			SaveGuardWarn:      isNoise,
+			RepeatFrames:       stats.repeatFrames,
+			Probs:              res.CoarseProbs,
+			FineClassID:        res.FineClassID,
+			ProtocolLabel:      res.ProtocolLabel,
+			ProtocolConfidence: res.ProtocolConfidence,
+			ModelVersion:       res.ModelVersion,
 		}
 	}
 	feat := ExtractFeatures(pulses, carrierHz)
-	stats := analyzeFrameStats(pulses)
 	res := ClassifyFeatures(feat)
 	res.RepeatFrames = stats.repeatFrames
 	return res

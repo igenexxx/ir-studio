@@ -26,7 +26,20 @@ func labToolDefinitions() []toolDefinition {
 				"window_ms":  intProp("Measurement window in milliseconds (200..5000, default 1000)", lirc.MinMeasureWindowMs, lirc.MaxMeasureWindowMs),
 			}, []string{"confirm_ir"}),
 		},
+		{
+			Name:        "ir_model_info",
+			Description: "Inspect the active on-device Pure-Go INT8 PulseNet-IR .czml model (version, SHA-256, embedded vs override source, 24 fine classes, denoiser availability).",
+			InputSchema: objSchema(nil, nil),
+		},
 	}
+}
+
+func (s *Server) toolModelInfo(_ context.Context, _ json.RawMessage) (toolResult, *rpcError) {
+	return okJSON(map[string]any{
+		"pulsenet_ir":   irml.ActivePulseNetInfo(),
+		"models_dir":    irml.DefaultModelsDir(),
+		"embedding_dim": irml.PulseNetEmbedDim,
+	}), nil
 }
 
 func (s *Server) toolMeasureFlicker(ctx context.Context, raw json.RawMessage) (toolResult, *rpcError) {

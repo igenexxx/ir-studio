@@ -322,7 +322,7 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 		t.Fatalf("unexpected init response: %+v", initResp)
 	}
 
-	// Verify tools/list returns all 30 tools with 1:1 schema-to-handler bijection.
+	// Verify tools/list returns all 31 tools with 1:1 schema-to-handler bijection.
 	var listResp struct {
 		Result struct {
 			Tools []toolDefinition `json:"tools"`
@@ -331,8 +331,8 @@ func TestServeStdioProtocolLifecycleAndSchemaParity(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[2]), &listResp); err != nil {
 		t.Fatalf("unmarshal tools/list: %v", err)
 	}
-	if len(listResp.Result.Tools) != 30 {
-		t.Fatalf("expected 30 tools, got %d", len(listResp.Result.Tools))
+	if len(listResp.Result.Tools) != 31 {
+		t.Fatalf("expected 31 tools, got %d", len(listResp.Result.Tools))
 	}
 	seen := make(map[string]bool, len(listResp.Result.Tools))
 	for _, td := range listResp.Result.Tools {
@@ -714,5 +714,17 @@ func TestLibraryAndSourcesTools(t *testing.T) {
 	})
 	if res.IsError || len(out["removed_ids"].([]any)) != 1 || len(out["not_found_ids"].([]any)) != 1 {
 		t.Fatalf("ir_remove_source unexpected output: %+v", out)
+	}
+}
+
+func TestPulseNetIRModelInfoMCPTool(t *testing.T) {
+	env := newTestEnv(t, nil)
+	res, out := callTool(t, env.srv, "ir_model_info", map[string]any{})
+	if res.IsError {
+		t.Fatalf("ir_model_info returned error: %+v", out)
+	}
+	pn, ok := out["pulsenet_ir"].(map[string]any)
+	if !ok || pn["source"] != "embedded" {
+		t.Fatalf("unexpected ir_model_info output: %+v", out)
 	}
 }

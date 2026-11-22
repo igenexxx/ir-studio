@@ -122,6 +122,7 @@ func (s *Server) registerTools() {
 	s.handlers["ir_tripwire_probe"] = s.toolTripwireProbe
 	s.handlers["ir_measure_flicker"] = s.toolMeasureFlicker
 	s.handlers["ir_measure_rpm"] = s.toolMeasureRPM
+	s.handlers["ir_model_info"] = s.toolModelInfo
 }
 
 type rpcRequest struct {

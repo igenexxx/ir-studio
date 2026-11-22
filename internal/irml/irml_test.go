@@ -364,11 +364,19 @@ func TestIRFingerprintIndexCarrierGateAndDedup(t *testing.T) {
 		t.Fatalf("Len() = %d, want 5", idx.Len())
 	}
 
-	// Query at 38 kHz must reject 56 kHz entry (> ±4 kHz) and deduplicate LG_TV.ir.
+	// Query at 38 kHz must reject 56 kHz entry (> ±4 kHz), deduplicate LG_TV.ir,
+	// and rank LG_TV.ir/Power first (SupCon 32D embeddings may place unrelated AC protocols at cos <= 0).
 	dst := make([]MatchResult, 0, 3)
 	matches := idx.Match(necEmb, 38000, dst)
-	if len(matches) != 3 {
-		t.Fatalf("len(matches) = %d, want 3", len(matches))
+	if len(matches) < 1 || len(matches) > 3 {
+		t.Fatalf("len(matches) = %d, want 1..3", len(matches))
+	}
+	seenIDs := make(map[string]bool, len(matches))
+	for _, m := range matches {
+		if seenIDs[m.RemoteID] {
+			t.Errorf("duplicate RemoteID %q returned by Match: %+v", m.RemoteID, matches)
+		}
+		seenIDs[m.RemoteID] = true
 	}
 	if matches[0].RemoteID != "LG_TV.ir" || matches[0].SignalName != "Power" {
 		t.Errorf("top match = %+v, want LG_TV.ir/Power (tie-break ascending)", matches[0])

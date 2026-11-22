@@ -33,6 +33,11 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	if a.RX.DenoiseOn && cp.Decoded == nil {
 		if sig, ok := a.reg.Decode(cleaned); ok {
 			cp.Decoded = &sig
+		} else if nnClean, _, nnOK := irml.DenoisePulsesNeural(make([]int32, 0, len(cp.Pulses)), cp.Pulses, cp.CarrierEstHz); nnOK {
+			if sig, ok := a.reg.Decode(nnClean); ok {
+				a.RX.Cleaned = nnClean
+				cp.Decoded = &sig
+			}
 		}
 	}
 	emb := irml.ExtractEmbedding(a.activeRXPulses(), cp.CarrierEstHz)

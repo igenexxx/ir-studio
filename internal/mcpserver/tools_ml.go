@@ -51,6 +51,13 @@ func (s *Server) toolAnalyzePulses(_ context.Context, raw json.RawMessage) (tool
 	}
 	if sig, ok := s.registry.Decode(irfile.PulseTrain(denoised)); ok {
 		out["decoded_protocol"] = signalToDTO(sig)
+		out["denoised_by"] = "kmeans"
+	} else if nnClean, _, nnOK := irml.DenoisePulsesNeural(make([]int32, 0, len(pulses)), pulses, 38000); nnOK {
+		if sig, ok := s.registry.Decode(irfile.PulseTrain(nnClean)); ok {
+			out["decoded_protocol"] = signalToDTO(sig)
+			out["denoised_pulses"] = nnClean
+			out["denoised_by"] = "pulsenet"
+		}
 	}
 	return okJSON(out), nil
 }
@@ -74,14 +81,14 @@ func (s *Server) toolClassifySignal(_ context.Context, raw json.RawMessage) (too
 		return errResult(err.Error()), nil
 	}
 	feat := irml.ExtractFeatures(pulses, carrierHz)
-	cls := irml.ClassifyFeatures(feat)
+	cls := irml.ClassifySignal(pulses, carrierHz)
 	out := classificationDTO(cls)
 	out["features"] = feat
 	return okJSON(out), nil
 }
 
 func classificationDTO(cls irml.Classification) map[string]any {
-	return map[string]any{
+	dto := map[string]any{
 		"label":      cls.Class.String(),
 		"confidence": cls.Confidence,
 		"is_noise":   cls.IsNoise,
@@ -91,6 +98,13 @@ func classificationDTO(cls irml.Classification) map[string]any {
 			irml.ClassAmbientNoise.String(): cls.Probs[irml.ClassAmbientNoise],
 		},
 	}
+	if cls.ProtocolLabel != "" {
+		dto["protocol_label"] = cls.ProtocolLabel
+		dto["protocol_confidence"] = cls.ProtocolConfidence
+		dto["fine_class_id"] = cls.FineClassID
+		dto["model_version"] = cls.ModelVersion
+	}
+	return dto
 }
 
 func (s *Server) toolMatchFingerprint(_ context.Context, raw json.RawMessage) (toolResult, *rpcError) {

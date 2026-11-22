@@ -134,7 +134,7 @@ var helpPages = []helpPage{
 			"4..8 : Bottom bar contextual actions",
 			"Enter : Primary action / Confirm",
 			"Space / 1 : Multi-select or STOP probe",
-			"R : Smart Probe Rank (8D IR match)",
+			"R : Smart Probe Rank (32D IR match)",
 			"H : Toggle Help   Esc/Q : Cancel/Exit",
 		},
 	},
@@ -183,7 +183,7 @@ var helpPages = []helpPage{
 			"CLI: ir-studio --sync | --probe | --sim",
 			"MCP: ssh <dev> ir-studio --mcp",
 			"Badges: LIRC(OK) SIM(mock) AMB(noise)",
-			"ML: K-Means + MLP + 8D Fingerprint",
+			"ML: PulseNet-IR 24-cls, PN-CLEAN, 32D",
 		},
 	},
 }
