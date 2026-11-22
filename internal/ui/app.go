@@ -42,10 +42,12 @@ type App struct {
 	Saved   SavedState
 	Macro   MacroState
 	Set     SettingsState
-	reg     *irfile.ProtocolRegistry
-	ambient *irml.AmbientMonitor
-	fpIndex *irml.IRFingerprintIndex
-	asyncCh chan asyncEvent
+	reg        *irfile.ProtocolRegistry
+	ambient    *irml.AmbientMonitor
+	fpIndex    *irml.IRFingerprintIndex
+	fpIndexing bool
+	fpCancel   context.CancelFunc
+	asyncCh    chan asyncEvent
 }
 
 // NewApp constructs an App coordinator with injected dependencies.
@@ -64,7 +66,7 @@ func NewApp(deps Deps) *App {
 	app.loadActiveRemote()
 	app.loadMacros()
 	app.loadSources()
-	app.rebuildFingerprintIndex()
+	app.startFingerprintIndexBuild()
 	return app
 }
 
@@ -78,8 +80,12 @@ func (a *App) initState(settings config.Settings) {
 	a.Set = SettingsState{Settings: settings, ConfigPath: a.Deps.ConfigPath, SourcesPath: a.Deps.SourcesPath}
 }
 
-// Close cleanly cancels any background probe, sweep, or macro sessions owned by UI.
+// Close cleanly cancels any background probe, sweep, index, or macro sessions owned by UI.
 func (a *App) Close() {
+	if a.fpCancel != nil {
+		a.fpCancel()
+		a.fpCancel = nil
+	}
 	a.cancelCarrierSweep()
 	if a.Probe.Session != nil {
 		a.Probe.Session.Pause()
@@ -260,6 +266,10 @@ func (a *App) drainAsync() {
 }
 
 func (a *App) applyAsyncEvent(ev asyncEvent) {
+	if ev.fpIndex != nil {
+		a.fpIndex = ev.fpIndex
+		a.fpIndexing = false
+	}
 	if ev.sweep != nil {
 		a.applySweepEvent(ev.sweep)
 	}
@@ -291,7 +301,7 @@ func (a *App) applyAsyncEvent(ev asyncEvent) {
 			a.SetToast(ev.syncMsg, fb.ColEmerald)
 			a.refreshSaved()
 			a.refreshProbePacks()
-			a.rebuildFingerprintIndex()
+			a.startFingerprintIndexBuild()
 		}
 	}
 }

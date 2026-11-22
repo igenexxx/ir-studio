@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 
 	"ir-studio/internal/fb"
@@ -9,36 +10,72 @@ import (
 	"ir-studio/internal/library"
 )
 
-func (a *App) rebuildFingerprintIndex() {
-	idx := &irml.IRFingerprintIndex{}
+const maxIndexedSignalsPerRemote = 3
+
+func (a *App) startFingerprintIndexBuild() {
+	if a.fpCancel != nil {
+		a.fpCancel()
+		a.fpCancel = nil
+	}
 	if a.Deps.Store == nil {
-		a.fpIndex = idx
+		a.fpIndex = &irml.IRFingerprintIndex{}
+		a.fpIndexing = false
 		return
 	}
-	packs, err := a.Deps.Store.ListDatabasePacks()
+	ctx, cancel := context.WithCancel(context.Background())
+	a.fpCancel = cancel
+	a.fpIndexing = true
+	store := a.Deps.Store
+	reg := a.reg
+	ch := a.asyncCh
+
+	go func() {
+		idx := buildFingerprintIndex(ctx, store, reg)
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case ch <- asyncEvent{kind: "fp", fpIndex: idx}:
+		case <-ctx.Done():
+		}
+	}()
+}
+
+func buildFingerprintIndex(ctx context.Context, store *library.Store, reg *irfile.ProtocolRegistry) *irml.IRFingerprintIndex {
+	idx := &irml.IRFingerprintIndex{}
+	packs, err := store.ListDatabasePacks()
 	if err != nil {
-		a.fpIndex = idx
-		return
+		return idx
 	}
 	for _, pack := range packs {
-		entries, err := a.Deps.Store.ListPackRemotes(pack.ID)
+		if ctx.Err() != nil {
+			return idx
+		}
+		entries, err := store.ListPackRemotes(pack.ID)
 		if err != nil {
 			continue
 		}
 		for _, e := range entries {
-			a.indexRemoteEntry(idx, pack.ID, e)
+			if ctx.Err() != nil {
+				return idx
+			}
+			indexRemoteEntry(ctx, idx, store, reg, pack.ID, e)
 		}
 	}
-	a.fpIndex = idx
+	return idx
 }
 
-func (a *App) indexRemoteEntry(idx *irml.IRFingerprintIndex, packID string, e library.RemoteEntry) {
-	loaded, err := a.Deps.Store.LoadRemote(e)
+func indexRemoteEntry(ctx context.Context, idx *irml.IRFingerprintIndex, store *library.Store, reg *irfile.ProtocolRegistry, packID string, e library.RemoteEntry) {
+	loaded, err := store.LoadRemote(e)
 	if err != nil {
 		return
 	}
+	added := 0
 	for _, sig := range loaded.Signals {
-		pulses, carrier := a.signalToPulses(sig)
+		if ctx.Err() != nil || added >= maxIndexedSignalsPerRemote {
+			return
+		}
+		pulses, carrier := signalToPulsesWithReg(reg, sig)
 		if len(pulses) == 0 {
 			continue
 		}
@@ -49,10 +86,15 @@ func (a *App) indexRemoteEntry(idx *irml.IRFingerprintIndex, packID string, e li
 			CarrierHz:  carrier,
 			Embedding:  irml.ExtractEmbedding(pulses, carrier),
 		})
+		added++
 	}
 }
 
 func (a *App) signalToPulses(sig irfile.IRSignal) (irfile.PulseTrain, uint32) {
+	return signalToPulsesWithReg(a.reg, sig)
+}
+
+func signalToPulsesWithReg(reg *irfile.ProtocolRegistry, sig irfile.IRSignal) (irfile.PulseTrain, uint32) {
 	carrier := sig.CarrierSpec().FreqHz
 	if sig.Kind == irfile.SignalRaw {
 		p, err := irfile.FromRawData(sig.RawData)
@@ -61,7 +103,7 @@ func (a *App) signalToPulses(sig irfile.IRSignal) (irfile.PulseTrain, uint32) {
 		}
 		return p, carrier
 	}
-	p, err := a.reg.Encode(sig)
+	p, err := reg.Encode(sig)
 	if err != nil {
 		return nil, 0
 	}
@@ -111,7 +153,11 @@ func (a *App) drawRXMatchList(c *fb.Canvas) {
 	c.FillRect(6, 103, 308, 37, fb.ColSurface)
 	c.DrawRect(6, 103, 308, 37, fb.ColBorder)
 	if len(a.RX.Matches) == 0 {
-		c.DrawText(10, 117, "k-NN Match: sync DB packs for hints", fb.ColMuted, 1)
+		hint := "k-NN Match: sync DB packs for hints"
+		if a.fpIndexing {
+			hint = "k-NN Match: indexing DB in background..."
+		}
+		c.DrawText(10, 117, hint, fb.ColMuted, 1)
 		return
 	}
 	for i, m := range a.RX.Matches {

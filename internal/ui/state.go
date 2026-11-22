@@ -186,6 +186,7 @@ type asyncEvent struct {
 	probeSnap *library.ProbeSnapshot
 	macroProg *library.MacroProgress
 	sweep     *sweepAsync
+	fpIndex   *irml.IRFingerprintIndex
 	syncDone  bool
 	syncMsg   string
 	syncErr   error
