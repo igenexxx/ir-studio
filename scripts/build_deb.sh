@@ -36,7 +36,7 @@ install -m 0755 "dist/${PKG}" "$STAGE/usr/share/APPLaunch/bin/${PKG}"
 install -m 0644 "assets/images/ir-studio-icon.png" "$STAGE/usr/share/APPLaunch/share/images/ir-studio-icon.png"
 
 cat > "$STAGE/etc/udev/rules.d/99-ir-studio-lirc.rules" <<'EOF'
-SUBSYSTEM=="lirc", KERNEL=="lirc[0-9]*", MODE="0660", GROUP="lirc"
+SUBSYSTEM=="lirc", KERNEL=="lirc[0-9]*", MODE="0660", GROUP="plugdev"
 EOF
 chmod 0644 "$STAGE/etc/udev/rules.d/99-ir-studio-lirc.rules"
 
@@ -76,7 +76,7 @@ if command -v udevadm >/dev/null 2>&1; then
   udevadm control --reload-rules >/dev/null 2>&1 || true
   udevadm trigger --subsystem-match=lirc >/dev/null 2>&1 || true
 fi
-echo "ir-studio installed. Ensure your user is in groups: lirc, video, input."
+echo "ir-studio installed. /dev/lirc* granted to group plugdev."
 EOF
 chmod 0755 "$STAGE/DEBIAN/postinst"
 
