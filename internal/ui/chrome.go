@@ -25,25 +25,41 @@ func (a *App) drawHeader(c *fb.Canvas) {
 	c.FillRect(0, 0, fb.ScreenW, HeaderH-1, fb.ColSurface)
 	c.HLine(0, HeaderH-1, fb.ScreenW, fb.ColBorder)
 
-	a.drawHeaderTabPills(c)
-	a.drawHeaderAmbient(c)
-	a.drawHeaderDeviceBadge(c)
+	a.drawHeaderBreadcrumb(c)
+	a.drawHeaderBadges(c)
 }
 
-func (a *App) drawHeaderTabPills(c *fb.Canvas) {
-	x := 3
-	for t := range tabCount {
-		label := t.PillLabel()
-		w := len(label)*6 + 6
-		if t == a.Chrome.Tab {
-			c.FillRect(x, 3, w, 11, fb.ColNavActive)
-			c.DrawRect(x, 3, w, 11, fb.ColCyan)
-			c.DrawText(x+3, 5, label, fb.ColCyan, 1)
-		} else {
-			c.DrawText(x+3, 5, label, fb.ColMuted, 1)
+func (a *App) drawHeaderBreadcrumb(c *fb.Canvas) {
+	title := a.Chrome.Tab.Title()
+	col := fb.ColCyan
+	if a.Chrome.Tab == TabSaved && !a.Saved.ScopeUser {
+		title = "< DB BROWSER"
+		col = fb.ColAmber
+	} else if a.Chrome.Tab == TabRemote && a.Remote.Loaded {
+		title = "< " + truncate(a.Remote.Entry.Name, 20)
+	} else if a.Chrome.Tab == TabHome {
+		c.FillRect(4, 3, 58, 11, fb.ColCyan)
+		c.DrawText(7, 5, "IR STUDIO", fb.ColBg, 1)
+		modeLbl, modeCol := "SIMPLE", fb.ColMuted
+		if a.Set.Settings.ExpertMode {
+			modeLbl, modeCol = "EXPERT", fb.ColMagenta
 		}
-		x += w + 2
+		c.DrawText(68, 5, modeLbl, modeCol, 1)
+		return
 	}
+	c.DrawText(6, 5, truncate(title, 28), col, 1)
+}
+
+func (a *App) drawHeaderBadges(c *fb.Canvas) {
+	if a.Set.Settings.ExpertMode && a.Chrome.Tab != TabHome {
+		c.FillRect(206, 3, 28, 11, fb.ColSurfaceAlt)
+		c.DrawRect(206, 3, 28, 11, fb.ColMagenta)
+		c.DrawTextCentered(220, 5, "EXP", fb.ColMagenta, 1)
+	}
+	if a.Chrome.Tab == TabRead || a.Chrome.Tab == TabRX {
+		a.drawHeaderAmbient(c)
+	}
+	a.drawHeaderDeviceBadge(c)
 }
 
 func (a *App) drawHeaderAmbient(c *fb.Canvas) {
@@ -127,63 +143,47 @@ type helpPage struct {
 
 var helpPages = []helpPage{
 	{
-		Title: "1/5 NAVIGATION & GLOBAL KEYS",
+		Title: "1/4 HOME MENU & NAVIGATION",
 		Lines: []string{
-			"Tab / 9 / 0 : Cycle tabs (RX..SET)",
-			"F / X / Z / C : Up / Down / Left / Right",
-			"4..8 : Bottom bar contextual actions",
-			"Enter : Primary action / Confirm",
-			"Space / 1 : Multi-select or STOP probe",
-			"R : Smart Probe Rank (32D IR match)",
-			"H : Toggle Help   Esc/Q : Cancel/Exit",
+			"F / X : Move up / down in menus",
+			"Enter : Open item or primary action",
+			"Esc   : Step back (Home -> Exit confirm)",
+			"4..8  : Bottom bar labeled softkeys",
+			"5 EXP : Toggle Simple / Expert Mode",
+			"H : Help   Q : Quit immediately",
 		},
 	},
 	{
-		Title: "2/5 RX, SWEEP & AC DIFF",
+		Title: "2/4 READ & REPLAY (LINEAR FLOW)",
 		Lines: []string{
-			"Live /dev/lirc* mark/space oscilloscope",
-			"AMB bar: CLEAN / MOD / SAT (sun/LED)",
-			"4 HOLD/LEARN : Toggle live capture",
-			"5 CLEAN/SWEEP: Denoise or 36-56kHz sweep",
-			"R : Carrier sweep active RX capture",
-			"6 DIFF : AC bit XOR  7 SAVE  8 CARR",
-			"Esc : Cancel active sweep / close diff",
+			"Step 1: Aim remote (5-20cm) & press key",
+			"Step 2: Captured! Card shows protocol",
+			"  Enter / 4 SEND : Replay immediately!",
+			"  5 SAVE : Save & open in Remote Deck",
+			"  6 AGAIN: Capture next button",
+			"  7 ADDDB: Add full matched DB remote",
 		},
 	},
 	{
-		Title: "3/5 TV-B-GONE PROBE & RANK",
+		Title: "3/4 MY REMOTES, AC & UNIV OFF",
 		Lines: []string{
-			"GEN:TVBG: 100 offline TV/Proj/Bar codes",
-			"4 RUN/STOP | Space : Instant halt",
-			"F / X : Rewind > (last) / * (12 trail)",
-			"Z / C : Interval 0.3s .. 5.0s",
-			"5 TRY : Single test fire focused code",
-			"6 SAVE: Promote winning code to USER",
-			"7 ACT : Filter   8 PACK | R : Rank",
+			"My Remotes: Enter opens your remote",
+			"  4 SEND  5 ADD + (learn more buttons)",
+			"  Esc / 8 BACK returns to remote list",
+			"Smart AC: Z/C Temp F/X Mode R Brand",
+			"  4 PWR 5 FAN 6 SWING 7 SEND 8 SAVE",
+			"Universal Off: 4 RUN/STOP  6 SAVE",
 		},
 	},
 	{
-		Title: "4/5 REMOTE, AC CTRL & SAVED",
+		Title: "4/4 EXPERT MODE & MCP SERVER",
 		Lines: []string{
-			"REMOTE: 4 SEND 5 SWEEP 6 LEARN+ 7 DEL",
-			"  1 / 8 AC: Smart AC Controller (6 brd)",
-			"  AC: Z/C Temp 16-30C  F/X Mode R Brand",
-			"  AC: 4 PWR 5 FAN 6 SWING 7 SEND 8 SAVE",
-			"SAVED : Split USER (RW) vs DB (RO)",
-			"  1/Space=[x] multi-select, 7 DEL batch",
-			"MACRO : 4 RUN 5 NEW 6 ADD 7 DEL 8 EDIT",
-		},
-	},
-	{
-		Title: "5/5 DB SYNC, MCP & BADGES",
-		Lines: []string{
-			"SET: Opt-in MCP Server (default OFF)",
-			"  Carrier 36-56kHz, Duty 33/50%, Sync",
-			"  Manage DB Sources: toggle/del packs",
-			"CLI: ir-studio --sync | --probe | --sim",
-			"MCP: ssh <dev> ir-studio --mcp",
-			"Badges: LIRC(OK) SIM(mock) AMB(noise)",
-			"ML: PulseNet-IR 24-cls, PN-CLEAN, 32D",
+			"Enable Expert Mode (HOME -> 5 EXP / SET)",
+			"Unlocks: IR Lab (Oscilloscope, AC Diff,",
+			"  32D k-NN), Macros, and DB Browser.",
+			"PulseNet-IR: 24 protocols + PN-CLEAN.",
+			"MCP (opt-in SET): ir-studio --mcp",
+			"Badges: LIRC(HW) SIM(mock) EXP(Expert)",
 		},
 	},
 }

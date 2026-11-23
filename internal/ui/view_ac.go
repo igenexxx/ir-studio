@@ -66,7 +66,11 @@ func (a *App) handleACKey(act input.KeyAction) bool {
 	case input.KeySoft8:
 		a.saveACState()
 	case input.KeyEsc, input.Key1:
-		a.Remote.AC.Active = false
+		if a.Chrome.Tab == TabAC {
+			a.goHome()
+		} else {
+			a.Remote.AC.Active = false
+		}
 	}
 	return false
 }

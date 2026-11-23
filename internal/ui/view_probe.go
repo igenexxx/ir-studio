@@ -61,14 +61,28 @@ func (a *App) handleProbeKey(act input.KeyAction) bool {
 		} else {
 			a.tryProbeCandidate()
 		}
-	case input.KeyEnter, input.KeySoft5:
+	case input.KeyEnter:
+		if a.Set.Settings.ExpertMode {
+			a.tryProbeCandidate()
+		} else {
+			a.toggleProbeRun()
+		}
+	case input.KeySoft5:
 		a.tryProbeCandidate()
 	case input.KeySoft6:
 		a.promoteProbeWinner()
 	case input.KeySoft7:
-		a.cycleProbeAction()
+		if a.Set.Settings.ExpertMode {
+			a.cycleProbeAction()
+		} else {
+			a.cycleProbePack()
+		}
 	case input.KeySoft8:
-		a.cycleProbePack()
+		if a.Set.Settings.ExpertMode {
+			a.cycleProbePack()
+		} else {
+			a.goHome()
+		}
 	case input.KeyUp:
 		a.moveProbeCursor(-1)
 	case input.KeyDown:
@@ -80,7 +94,11 @@ func (a *App) handleProbeKey(act input.KeyAction) bool {
 	case input.KeyR:
 		a.applySmartProbeRank()
 	case input.KeyEsc:
-		a.stopProbe()
+		if a.Probe.Snap.State == library.ProbeRunning {
+			a.stopProbe()
+			return false
+		}
+		a.goHome()
 	}
 	return false
 }
@@ -238,7 +256,11 @@ func (a *App) renderProbe(c *fb.Canvas) {
 	if a.Probe.Snap.State == library.ProbeRunning {
 		runLbl = "STOP"
 	}
-	a.drawNavBar(c, [5]string{runLbl, "TRY", "SAVE", "ACT", "PACK"})
+	if a.Set.Settings.ExpertMode {
+		a.drawNavBar(c, [5]string{runLbl, "TRY", "SAVE", "ACT", "PACK"})
+		return
+	}
+	a.drawNavBar(c, [5]string{runLbl, "TRY", "SAVE", "PACK", "MENU"})
 }
 
 func (a *App) drawProbeHeader(c *fb.Canvas) {
@@ -264,7 +286,10 @@ func (a *App) drawProbeHeader(c *fb.Canvas) {
 func (a *App) drawProbeProgress(c *fb.Canvas) {
 	snap := a.Probe.Snap
 	d := library.ProbeIntervalPresets[a.Probe.IntervalIdx%len(library.ProbeIntervalPresets)]
-	meta := fmt.Sprintf("%03d/%03d  INTV:%.1fs  [R]Rank", snap.SentCount, snap.Total, d.Seconds())
+	meta := fmt.Sprintf("%03d/%03d  INTV:%.1fs  [Enter]Run/Stop", snap.SentCount, snap.Total, d.Seconds())
+	if a.Set.Settings.ExpertMode {
+		meta = fmt.Sprintf("%03d/%03d  INTV:%.1fs  [R]Rank", snap.SentCount, snap.Total, d.Seconds())
+	}
 	c.DrawText(6, 35, meta, fb.ColMuted, 1)
 
 	barX, barY, barW, barH := 6, 45, 308, 6

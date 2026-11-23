@@ -61,6 +61,9 @@ func (a *App) handleSavedKey(act input.KeyAction) bool {
 	if a.Saved.ConfirmPurge {
 		return a.handleSavedConfirmPurge(act)
 	}
+	if !a.Set.Settings.ExpertMode {
+		a.Saved.ScopeUser = true
+	}
 	switch act {
 	case input.KeyUp:
 		a.Saved.Cursor--
@@ -69,19 +72,33 @@ func (a *App) handleSavedKey(act input.KeyAction) bool {
 		a.Saved.Cursor++
 		a.clampSavedCursor()
 	case input.KeyLeft, input.KeyRight:
-		a.cycleSavedDBPack(act)
+		if a.Set.Settings.ExpertMode {
+			a.cycleSavedDBPack(act)
+		}
 	case input.Key1, input.KeySpace:
-		a.toggleSavedSelect()
+		if a.Set.Settings.ExpertMode {
+			a.toggleSavedSelect()
+		}
 	case input.KeyEnter, input.KeySoft4:
 		a.openFocusedSaved()
 	case input.KeySoft5:
 		a.sendFocusedSaved()
 	case input.KeySoft6:
-		a.handleSavedSoft6()
+		if a.Set.Settings.ExpertMode {
+			a.handleSavedSoft6()
+		} else {
+			a.enterReadAndReplay()
+		}
 	case input.KeySoft7, input.KeyDel:
 		a.requestSavedDelete()
 	case input.KeySoft8:
-		a.toggleSavedScope()
+		if a.Set.Settings.ExpertMode {
+			a.toggleSavedScope()
+		} else {
+			a.goHome()
+		}
+	case input.KeyEsc:
+		a.goHome()
 	}
 	return false
 }
@@ -231,12 +248,15 @@ func (a *App) toggleSavedScope() {
 }
 
 func (a *App) renderSaved(c *fb.Canvas) {
+	if !a.Set.Settings.ExpertMode {
+		a.Saved.ScopeUser = true
+	}
 	a.drawSavedHeader(c)
 	list := a.activeSavedList()
 	if len(list) == 0 {
-		msg := "No USER remotes yet"
+		msg := "No remotes yet - press 6 NEW"
 		if !a.Saved.ScopeUser {
-			msg = "No DB packs (sync in SET)"
+			msg = "No DB packs (sync in Settings)"
 		}
 		c.DrawTextCentered(fb.ScreenW/2, 76, msg, fb.ColMuted, 1)
 	} else {
@@ -250,9 +270,13 @@ func (a *App) renderSaved(c *fb.Canvas) {
 	}
 	if a.Saved.ConfirmDel {
 		cnt := max(len(a.Saved.Selected), 1)
-		drawConfirmBanner(c, fmt.Sprintf("Delete %d USER item(s)? [Enter=YES]", cnt))
+		drawConfirmBanner(c, fmt.Sprintf("Delete %d remote(s)? [Enter=YES]", cnt))
 	} else if a.Saved.ConfirmPurge {
 		drawConfirmBanner(c, "Purge ML noise remotes? [Enter=YES]")
+	}
+	if !a.Set.Settings.ExpertMode {
+		a.drawNavBar(c, [5]string{"OPEN", "SEND", "NEW", "DEL", "MENU"})
+		return
 	}
 	s6 := "PURGE"
 	if !a.Saved.ScopeUser {
@@ -263,11 +287,13 @@ func (a *App) renderSaved(c *fb.Canvas) {
 
 func (a *App) drawSavedHeader(c *fb.Canvas) {
 	if a.Saved.ScopeUser {
-		x := drawSubHeaderPill(c, 6, fmt.Sprintf("USER (%d)", len(a.Saved.UserEntries)), fb.ColEmerald)
-		if len(a.Saved.Selected) > 0 {
-			drawSubHeaderPill(c, x, fmt.Sprintf("SEL:%d", len(a.Saved.Selected)), fb.ColCyan)
+		x := drawSubHeaderPill(c, 6, fmt.Sprintf("MY REMOTES (%d)", len(a.Saved.UserEntries)), fb.ColEmerald)
+		if a.Set.Settings.ExpertMode {
+			if len(a.Saved.Selected) > 0 {
+				drawSubHeaderPill(c, x, fmt.Sprintf("SEL:%d", len(a.Saved.Selected)), fb.ColCyan)
+			}
+			c.DrawText(224, SubPillY+2, "[1/Spc]Mark", fb.ColMuted, 1)
 		}
-		c.DrawText(224, SubPillY+2, "[1/Spc]Mark", fb.ColMuted, 1)
 		return
 	}
 	packLabel := "DB:NONE"
@@ -286,18 +312,19 @@ func (a *App) drawSavedRow(c *fb.Canvas, idx, y int, entry library.RemoteEntry) 
 		c.DrawRect(6, y-1, 308, 12, fb.ColCyan)
 	}
 	prefix := "   "
-	if a.Saved.ScopeUser {
+	pCol := fb.ColMuted
+	if !a.Set.Settings.ExpertMode {
+		if focused {
+			prefix, pCol = " > ", fb.ColCyan
+		}
+	} else if a.Saved.ScopeUser {
 		if a.Saved.Selected[entry.RelPath] {
-			prefix = "[x]"
+			prefix, pCol = "[x]", fb.ColCyan
 		} else {
 			prefix = "[ ]"
 		}
 	} else {
 		prefix = "RO "
-	}
-	pCol := fb.ColMuted
-	if prefix == "[x]" {
-		pCol = fb.ColCyan
 	}
 	c.DrawText(10, y+1, prefix, pCol, 1)
 	c.DrawText(32, y+1, truncate(entry.Name, 30), fb.ColFg, 1)

@@ -14,6 +14,9 @@ func TestDefaultSettingsAndSanitize(t *testing.T) {
 	if def.MCPEnabled {
 		t.Fatal("DefaultSettings().MCPEnabled MUST be false (default-deny invariant)")
 	}
+	if def.ExpertMode {
+		t.Fatal("DefaultSettings().ExpertMode MUST be false (Simple Mode default)")
+	}
 	if def.CarrierHz != 38000 || def.DutyCyclePct != 33 || def.ProbeIntervalMs != 1200 {
 		t.Fatalf("unexpected defaults: %+v", def)
 	}
@@ -52,6 +55,7 @@ func TestConfigLoadSaveAtomicAndFailClosed(t *testing.T) {
 
 	// SaveAtomic with 0600 file and 0700 dir permissions.
 	s.MCPEnabled = true
+	s.ExpertMode = true
 	s.CarrierHz = 56000
 	s.DutyCyclePct = 50
 	s.DevicePath = "/dev/lirc0"
@@ -78,7 +82,7 @@ func TestConfigLoadSaveAtomicAndFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !loaded.MCPEnabled || loaded.CarrierHz != 56000 || loaded.DutyCyclePct != 50 || loaded.DevicePath != "/dev/lirc0" {
+	if !loaded.MCPEnabled || !loaded.ExpertMode || loaded.CarrierHz != 56000 || loaded.DutyCyclePct != 50 || loaded.DevicePath != "/dev/lirc0" {
 		t.Fatalf("loaded mismatch: %+v", loaded)
 	}
 

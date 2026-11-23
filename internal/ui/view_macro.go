@@ -46,11 +46,19 @@ func (a *App) handleMacroKey(act input.KeyAction) bool {
 		a.adjustMacroStepDelay(100)
 	case input.KeyEnter, input.KeySoft4:
 		a.toggleMacroRun()
-	case input.KeySpace, input.KeyEsc:
+	case input.KeySpace:
 		if a.Macro.Running {
 			a.stopMacro()
 		} else if a.Macro.EditMode {
 			a.Macro.EditMode = false
+		}
+	case input.KeyEsc:
+		if a.Macro.Running {
+			a.stopMacro()
+		} else if a.Macro.EditMode {
+			a.Macro.EditMode = false
+		} else {
+			a.goHome()
 		}
 	case input.KeySoft5:
 		a.createNewMacro()

@@ -34,14 +34,15 @@ type Deps struct {
 
 // App is the 320x170 LCD UI coordinator composing cohesive domain sub-structs.
 type App struct {
-	Deps    Deps
-	Chrome  ChromeState
-	RX      RXState
-	Remote  RemoteState
-	Probe   ProbeState
-	Saved   SavedState
-	Macro   MacroState
-	Set     SettingsState
+	Deps       Deps
+	Chrome     ChromeState
+	Home       HomeState
+	RX         RXState
+	Remote     RemoteState
+	Probe      ProbeState
+	Saved      SavedState
+	Macro      MacroState
+	Set        SettingsState
 	reg        *irfile.ProtocolRegistry
 	ambient    *irml.AmbientMonitor
 	fpIndex    *irml.IRFingerprintIndex
@@ -71,7 +72,8 @@ func NewApp(deps Deps) *App {
 }
 
 func (a *App) initState(settings config.Settings) {
-	a.Chrome = ChromeState{Tab: TabRX, SimMode: a.Deps.SimMode, DeviceLabel: a.Deps.DeviceLabel}
+	a.Chrome = ChromeState{Tab: TabHome, SimMode: a.Deps.SimMode, DeviceLabel: a.Deps.DeviceLabel}
+	a.Home = HomeState{}
 	a.RX = RXState{Learning: true, DenoiseOn: true, CarrierIdx: carrierPresetIdx(settings.CarrierHz)}
 	a.Remote = RemoteState{RepeatCount: 1, AC: newACControlState()}
 	a.Probe = ProbeState{IntervalIdx: intervalPresetIdx(settings.ProbeIntervalMs)}
@@ -105,12 +107,22 @@ func (a *App) SetToast(msg string, col uint16) {
 // SwitchTab activates tab t and resets transient confirmation prompts.
 func (a *App) SwitchTab(t Tab) {
 	a.Chrome.Tab = t % tabCount
+	a.Home.ConfirmExit = false
 	a.RX.GuardPending = false
 	a.Remote.ConfirmDel = false
 	a.Saved.ConfirmDel = false
 	a.Saved.ConfirmPurge = false
 	a.Macro.ConfirmDel = false
 	a.Set.ConfirmDelPack = false
+}
+
+func (a *App) goHome() {
+	a.cancelCarrierSweep()
+	a.stopProbe()
+	a.Remote.LearnPending = false
+	a.Remote.AC.Active = false
+	a.Set.SubViewSources = false
+	a.SwitchTab(TabHome)
 }
 
 // Step drains non-blocking RX/TX/async events and advances UI timers (~55 ms tick).
@@ -151,7 +163,11 @@ func (a *App) HandleKey(act input.KeyAction) bool {
 		return false
 	}
 	if act == input.KeyTab {
-		a.SwitchTab((a.Chrome.Tab + 1) % tabCount)
+		if a.Set.Settings.ExpertMode {
+			a.SwitchTab((a.Chrome.Tab + 1) % tabCount)
+		} else {
+			a.goHome()
+		}
 		return false
 	}
 	if act == input.KeyQ {
@@ -174,14 +190,20 @@ func (a *App) handleHelpKey(act input.KeyAction) bool {
 
 func (a *App) dispatchTabKey(act input.KeyAction) bool {
 	switch a.Chrome.Tab {
-	case TabRX:
-		return a.handleRXKey(act)
+	case TabHome:
+		return a.handleHomeKey(act)
+	case TabRead:
+		return a.handleReadKey(act)
+	case TabSaved:
+		return a.handleSavedKey(act)
 	case TabRemote:
 		return a.handleRemoteKey(act)
 	case TabProbe:
 		return a.handleProbeKey(act)
-	case TabSaved:
-		return a.handleSavedKey(act)
+	case TabAC:
+		return a.handleACKey(act)
+	case TabRX:
+		return a.handleRXKey(act)
 	case TabMacro:
 		return a.handleMacroKey(act)
 	case TabSet:
@@ -196,14 +218,20 @@ func (a *App) Render(c *fb.Canvas) {
 	c.Clear(fb.ColBg)
 	a.drawHeader(c)
 	switch a.Chrome.Tab {
-	case TabRX:
-		a.renderRX(c)
+	case TabHome:
+		a.renderHome(c)
+	case TabRead:
+		a.renderRead(c)
+	case TabSaved:
+		a.renderSaved(c)
 	case TabRemote:
 		a.renderRemote(c)
 	case TabProbe:
 		a.renderProbe(c)
-	case TabSaved:
-		a.renderSaved(c)
+	case TabAC:
+		a.renderAC(c)
+	case TabRX:
+		a.renderRX(c)
 	case TabMacro:
 		a.renderMacro(c)
 	case TabSet:
@@ -216,10 +244,7 @@ func (a *App) Render(c *fb.Canvas) {
 }
 
 func (a *App) drainRX() {
-	if a.Deps.RX == nil {
-		return
-	}
-	for {
+	for a.Deps.RX != nil {
 		select {
 		case cap, ok := <-a.Deps.RX.Captures():
 			if !ok {
@@ -233,19 +258,15 @@ func (a *App) drainRX() {
 }
 
 func (a *App) drainTX() {
-	if a.Deps.TX == nil {
-		return
-	}
-	for {
+	for a.Deps.TX != nil {
 		select {
 		case ev, ok := <-a.Deps.TX.Events():
 			if !ok {
 				return
 			}
-			switch ev.Kind {
-			case lirc.TXStarted:
+			if ev.Kind == lirc.TXStarted {
 				a.Remote.TXActive = true
-			case lirc.TXCompleted, lirc.TXCancelled, lirc.TXError:
+			} else if ev.Kind == lirc.TXCompleted || ev.Kind == lirc.TXCancelled || ev.Kind == lirc.TXError {
 				a.Remote.TXActive = false
 			}
 		default:
@@ -269,6 +290,11 @@ func (a *App) applyAsyncEvent(ev asyncEvent) {
 	if ev.fpIndex != nil {
 		a.fpIndex = ev.fpIndex
 		a.fpIndexing = false
+		if a.RX.LastCap != nil {
+			emb := irml.ExtractEmbedding(a.activeRXPulses(), a.RX.LastCap.CarrierEstHz)
+			a.RX.Matches = a.fpIndex.Match(emb, a.RX.LastCap.CarrierEstHz, make([]irml.MatchResult, 0, 3))
+			a.RX.MatchCursor = 0
+		}
 	}
 	if ev.sweep != nil {
 		a.applySweepEvent(ev.sweep)
@@ -323,23 +349,4 @@ func (a *App) submitTX(sig irfile.IRSignal, repeat int) error {
 		Repeat: max(repeat, 1),
 		Ctx:    context.Background(),
 	})
-}
-
-func carrierPresetIdx(hz uint32) int {
-	for i, v := range config.AllowedCarrierHz {
-		if v == hz {
-			return i
-		}
-	}
-	return 1
-}
-
-func intervalPresetIdx(ms int) int {
-	best := 3
-	for i, d := range library.ProbeIntervalPresets {
-		if int(d.Milliseconds()) == ms {
-			return i
-		}
-	}
-	return best
 }

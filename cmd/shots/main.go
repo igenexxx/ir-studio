@@ -147,6 +147,11 @@ func seedDemoRemotes(store *library.Store, dbDir string) {
 }
 
 func captureScreens(app *ui.App, c *fb.Canvas, outDir string, scale int) ([]string, error) {
+	// Let background fingerprint index finish on demo DB before capturing screenshots.
+	for range 20 {
+		app.Step()
+		time.Sleep(5 * time.Millisecond)
+	}
 	reg := irfile.DefaultRegistry()
 	necPulses, _ := reg.Encode(irfile.IRSignal{
 		Name: "Power", Kind: irfile.SignalParsed, Protocol: "NEC",
@@ -164,19 +169,43 @@ func captureScreens(app *ui.App, c *fb.Canvas, outDir string, scale int) ([]stri
 		name  string
 		setup func()
 	}{
-		{"rx.png", func() { app.SwitchTab(ui.TabRX); app.Chrome.ToastText = "" }},
-		{"remote.png", func() { app.SwitchTab(ui.TabRemote); app.Remote.AC.Active = false; app.Chrome.ToastText = "" }},
+		{"home.png", func() {
+			app.Set.Settings.ExpertMode = false
+			app.Home.Cursor = 0
+			app.Home.Scroll = 0
+			app.SwitchTab(ui.TabHome)
+			app.Chrome.ToastText = ""
+		}},
+		{"read.png", func() {
+			app.Set.Settings.ExpertMode = false
+			app.SwitchTab(ui.TabRead)
+			app.Chrome.ToastText = ""
+		}},
+		{"remote.png", func() {
+			app.Set.Settings.ExpertMode = false
+			app.SwitchTab(ui.TabSaved)
+			app.Saved.ScopeUser = true
+			for i, e := range app.Saved.UserEntries {
+				if e.Name == "Samsung_TV" {
+					app.Saved.Cursor = i
+					break
+				}
+			}
+			app.HandleKey(input.KeyEnter)
+			app.Remote.AC.Active = false
+			app.Chrome.ToastText = ""
+		}},
 		{"ac.png", func() {
-			app.SwitchTab(ui.TabRemote)
-			app.Remote.AC.Active = true
+			app.Set.Settings.ExpertMode = false
+			app.SwitchTab(ui.TabAC)
 			app.Remote.AC.TempC = 22
 			app.Remote.AC.Power = true
 			app.Remote.AC.Swing = true
 			app.Chrome.ToastText = ""
 		}},
 		{"probe.png", func() {
+			app.Set.Settings.ExpertMode = false
 			app.SwitchTab(ui.TabProbe)
-			app.HandleKey(input.KeyR)
 			if app.Probe.Session != nil && len(app.Probe.Candidates) >= 2 {
 				app.Probe.Session.RecordSent(0)
 				app.Probe.Session.RecordSent(1)
@@ -185,21 +214,32 @@ func captureScreens(app *ui.App, c *fb.Canvas, outDir string, scale int) ([]stri
 			app.Chrome.ToastText = ""
 		}},
 		{"saved.png", func() {
+			app.Set.Settings.ExpertMode = false
+			app.Saved.ScopeUser = true
 			app.SwitchTab(ui.TabSaved)
-			app.HandleKey(input.Key1)
-			app.HandleKey(input.KeyDown)
-			app.HandleKey(input.Key1)
+			app.Chrome.ToastText = ""
+		}},
+		{"rx.png", func() {
+			app.Set.Settings.ExpertMode = true
+			app.SwitchTab(ui.TabRX)
 			app.Chrome.ToastText = ""
 		}},
 		{"macro.png", func() {
+			app.Set.Settings.ExpertMode = true
 			app.SwitchTab(ui.TabMacro)
 			app.Macro.Running = true
 			app.Macro.Progress = library.MacroProgress{MacroID: "movie_night", StepIndex: 1, StepTotal: 3, Button: "Power"}
 			app.Chrome.ToastText = ""
 		}},
-		{"set.png", func() { app.SwitchTab(ui.TabSet); app.Chrome.ToastText = "" }},
+		{"set.png", func() {
+			app.Set.Settings.ExpertMode = false
+			app.Set.Cursor = 0
+			app.SwitchTab(ui.TabSet)
+			app.Chrome.ToastText = ""
+		}},
 		{"help.png", func() {
-			app.SwitchTab(ui.TabRX)
+			app.Set.Settings.ExpertMode = false
+			app.SwitchTab(ui.TabHome)
 			app.Chrome.HelpOpen = true
 			app.Chrome.HelpPage = 0
 			app.Chrome.ToastText = ""

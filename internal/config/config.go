@@ -39,9 +39,10 @@ var AllowedCarrierHz = [4]uint32{36000, 38000, 40000, 56000}
 var AllowedDutyPct = [2]uint32{33, 50}
 
 // Settings holds persisted user preferences for ir-studio.
-// MCPEnabled MUST default to false (default-deny security invariant).
+// MCPEnabled and ExpertMode MUST default to false.
 type Settings struct {
 	MCPEnabled       bool   `json:"mcp_enabled"`
+	ExpertMode       bool   `json:"expert_mode"`
 	ForceSim         bool   `json:"force_sim"`
 	DevicePath       string `json:"device_path"`
 	CarrierHz        uint32 `json:"default_carrier_hz"`
@@ -51,10 +52,11 @@ type Settings struct {
 	AmbientThreshold int    `json:"ambient_threshold"`
 }
 
-// DefaultSettings returns canonical safe defaults with MCPEnabled == false.
+// DefaultSettings returns canonical safe defaults with MCPEnabled == false and ExpertMode == false.
 func DefaultSettings() Settings {
 	return Settings{
 		MCPEnabled:       false,
+		ExpertMode:       false,
 		ForceSim:         false,
 		DevicePath:       "",
 		CarrierHz:        DefaultCarrierHz,

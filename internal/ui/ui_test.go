@@ -118,7 +118,7 @@ func TestAllSixTabsRenderAndSoftkeyGeometry(t *testing.T) {
 	}
 }
 
-func TestHelpModalFivePages(t *testing.T) {
+func TestHelpModalPages(t *testing.T) {
 	app, _ := newTestApp(t)
 	c, _ := fb.NewCanvas("")
 
@@ -126,7 +126,7 @@ func TestHelpModalFivePages(t *testing.T) {
 	if !app.Chrome.HelpOpen {
 		t.Fatalf("expected HelpOpen after KeyH")
 	}
-	for page := range 5 {
+	for page := range len(helpPages) {
 		if app.Chrome.HelpPage != page {
 			t.Fatalf("HelpPage = %d, want %d", app.Chrome.HelpPage, page)
 		}
@@ -144,6 +144,8 @@ func TestHelpModalFivePages(t *testing.T) {
 
 func TestRXSmartSaveGuardAndACDiff(t *testing.T) {
 	app, _ := newTestApp(t)
+	app.Set.Settings.ExpertMode = true
+	app.SwitchTab(TabRX)
 	// Inject ambient noise pulses to trigger Smart Save Guard.
 	noise := irfile.PulseTrain{100, -100, 120, -90, 80, -110, 95, -105, 110, -85}
 	app.InjectCapture(lirc.RXCapture{
@@ -178,6 +180,7 @@ func TestRXSmartSaveGuardAndACDiff(t *testing.T) {
 
 func TestSavedMultiSelectAndReadOnlyDBProtection(t *testing.T) {
 	app, _ := newTestApp(t)
+	app.Set.Settings.ExpertMode = true
 	app.SwitchTab(TabSaved)
 
 	// Select first USER remote with Key1.
@@ -253,11 +256,20 @@ func TestMacroAndSettingsInteractions(t *testing.T) {
 	if app.Set.Settings.MCPEnabled {
 		t.Fatalf("MCP must default to OFF")
 	}
+	if app.Set.Settings.ExpertMode {
+		t.Fatalf("ExpertMode must default to OFF")
+	}
+	// Row 0 is Expert Mode, Row 1 is MCP Server (SSH).
+	app.HandleKey(input.KeyEnter) // toggle Expert Mode ON
+	if !app.Set.Settings.ExpertMode {
+		t.Fatalf("expected ExpertMode ON after row 0 toggle")
+	}
+	app.HandleKey(input.KeyDown)  // move to MCP Server
 	app.HandleKey(input.KeyEnter) // toggle MCP ON
 	if !app.Set.Settings.MCPEnabled {
 		t.Fatalf("expected MCP ON after toggle")
 	}
-	app.HandleKey(input.KeySoft6) // Manage DB Sources sub-view
+	app.HandleKey(input.KeySoft6) // Manage DB Sources sub-view (Expert Mode)
 	if !app.Set.SubViewSources {
 		t.Fatalf("expected SubViewSources=true")
 	}
@@ -273,11 +285,7 @@ func TestACControllerSubViewAndPersistence(t *testing.T) {
 	app, sim := newTestApp(t)
 	c, _ := fb.NewCanvas("")
 
-	app.SwitchTab(TabRemote)
-	app.HandleKey(input.KeySoft8) // opens AC sub-view on USER remote
-	if !app.Remote.AC.Active {
-		t.Fatalf("expected Remote.AC.Active=true after KeySoft8")
-	}
+	app.SwitchTab(TabAC)
 
 	// Z/C temperature clamping [16..30].
 	for range 20 {
@@ -318,8 +326,8 @@ func TestACControllerSubViewAndPersistence(t *testing.T) {
 	}
 
 	app.HandleKey(input.KeyEsc)
-	if app.Remote.AC.Active {
-		t.Fatalf("expected Remote.AC.Active=false after Esc")
+	if app.Chrome.Tab != TabHome {
+		t.Fatalf("expected TabHome after Esc from TabAC, got %v", app.Chrome.Tab)
 	}
 }
 
@@ -332,11 +340,12 @@ func TestCarrierSweepAndTVBGoneDefaultProbe(t *testing.T) {
 		t.Fatalf("expected GEN:TVBG (100), got %q (%d)", app.probePackLabel(), len(app.Probe.Candidates))
 	}
 
-	// Trigger non-blocking carrier sweep from REMOTE tab via KeySoft5.
+	// Trigger non-blocking carrier sweep from Expert REMOTE tab via KeySoft5.
+	app.Set.Settings.ExpertMode = true
 	app.SwitchTab(TabRemote)
 	app.HandleKey(input.KeySoft5)
 	if !app.Chrome.Sweep.Active {
-		t.Fatalf("expected Sweep.Active=true after REMOTE KeySoft5")
+		t.Fatalf("expected Sweep.Active=true after Expert REMOTE KeySoft5")
 	}
 	deadline := time.Now().Add(1500 * time.Millisecond)
 	for app.Chrome.Sweep.Active && time.Now().Before(deadline) {

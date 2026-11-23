@@ -11,8 +11,6 @@ import (
 	"ir-studio/internal/library"
 )
 
-const settingsRowCount = 6
-
 func (a *App) loadSources() {
 	if a.Set.SourcesPath == "" {
 		a.Set.Sources = dbsync.DefaultSources()
@@ -30,62 +28,83 @@ func (a *App) handleSetKey(act input.KeyAction) bool {
 	if a.Set.SubViewSources {
 		return a.handleSourcesSubViewKey(act)
 	}
+	rows := a.settingsRows()
+	if a.Set.Cursor >= len(rows) {
+		a.Set.Cursor = 0
+	}
 	switch act {
 	case input.KeyUp:
-		a.Set.Cursor = (a.Set.Cursor + settingsRowCount - 1) % settingsRowCount
+		a.Set.Cursor = (a.Set.Cursor + len(rows) - 1) % len(rows)
 	case input.KeyDown:
-		a.Set.Cursor = (a.Set.Cursor + 1) % settingsRowCount
+		a.Set.Cursor = (a.Set.Cursor + 1) % len(rows)
 	case input.KeyLeft:
-		a.adjustSettingRow(-1)
+		a.adjustSettingRow(rows[a.Set.Cursor].id, -1)
 	case input.KeyRight, input.KeyEnter, input.KeySoft4:
-		a.adjustSettingRow(1)
+		a.adjustSettingRow(rows[a.Set.Cursor].id, 1)
 	case input.KeySoft5:
 		a.startAsyncSync()
 	case input.KeySoft6:
-		a.Set.SubViewSources = true
-	case input.KeySoft8:
-		a.saveSettings()
+		if a.Set.Settings.ExpertMode {
+			a.Set.SubViewSources = true
+		}
+	case input.KeySoft7:
+		if a.Set.Settings.ExpertMode {
+			a.saveSettings()
+		}
+	case input.KeySoft8, input.KeyEsc:
+		a.goHome()
 	}
 	return false
 }
 
-func (a *App) adjustSettingRow(dir int) {
-	switch a.Set.Cursor {
-	case 0:
+func (a *App) adjustSettingRow(id string, dir int) {
+	switch id {
+	case "expert":
+		a.toggleExpertMode()
+		rows := a.settingsRows()
+		if a.Set.Cursor >= len(rows) {
+			a.Set.Cursor = 0
+		}
+	case "mcp":
 		a.Set.Settings.MCPEnabled = !a.Set.Settings.MCPEnabled
 		a.saveSettings()
-	case 1:
+	case "carrier":
 		idx := (carrierPresetIdx(a.Set.Settings.CarrierHz) + dir + len(config.AllowedCarrierHz)) % len(config.AllowedCarrierHz)
 		a.Set.Settings.CarrierHz = config.AllowedCarrierHz[idx]
 		a.RX.CarrierIdx = idx
 		a.saveSettings()
-	case 2:
+	case "duty":
 		if a.Set.Settings.DutyCyclePct == 33 {
 			a.Set.Settings.DutyCyclePct = 50
 		} else {
 			a.Set.Settings.DutyCyclePct = 33
 		}
 		a.saveSettings()
-	case 3:
+	case "interval":
 		n := len(library.ProbeIntervalPresets)
 		idx := min(max(intervalPresetIdx(a.Set.Settings.ProbeIntervalMs)+dir, 0), n-1)
 		a.Set.Settings.ProbeIntervalMs = int(library.ProbeIntervalPresets[idx].Milliseconds())
 		a.Probe.IntervalIdx = idx
 		a.saveSettings()
-	case 4:
+	case "sync":
 		a.startAsyncSync()
-	case 5:
+	case "sources":
 		a.Set.SubViewSources = true
 	}
 }
 
-func (a *App) saveSettings() {
+func (a *App) saveSettingsQuiet() error {
 	a.Set.Settings = config.Sanitize(a.Set.Settings)
 	if a.Set.ConfigPath != "" {
-		if err := config.SaveAtomic(a.Set.ConfigPath, a.Set.Settings); err != nil {
-			a.SetToast("Save err: "+truncate(err.Error(), 24), fb.ColRed)
-			return
-		}
+		return config.SaveAtomic(a.Set.ConfigPath, a.Set.Settings)
+	}
+	return nil
+}
+
+func (a *App) saveSettings() {
+	if err := a.saveSettingsQuiet(); err != nil {
+		a.SetToast("Save err: "+truncate(err.Error(), 24), fb.ColRed)
+		return
 	}
 	a.SetToast("Settings saved", fb.ColEmerald)
 }
@@ -176,30 +195,47 @@ func (a *App) renderSet(c *fb.Canvas) {
 		a.renderSourcesSubView(c)
 		return
 	}
-	x := drawSubHeaderPill(c, 6, "SETTINGS", fb.ColCyan)
 	if a.Set.Syncing {
-		drawSubHeaderPill(c, x, "SYNCING..", fb.ColAmber)
+		drawSubHeaderPill(c, 6, "SYNCING..", fb.ColAmber)
 	}
 	rows := a.settingsRows()
+	if a.Set.Cursor >= len(rows) {
+		a.Set.Cursor = 0
+	}
+	stepY := 20
+	startY := 26
+	if len(rows) > 5 {
+		stepY = 16
+		startY = 24
+	}
 	for i, r := range rows {
-		y := 35 + i*17
+		y := startY + i*stepY
 		if i == a.Set.Cursor {
-			c.FillRect(6, y-1, 308, 15, fb.ColSurfaceAlt)
-			c.DrawRect(6, y-1, 308, 15, fb.ColCyan)
+			c.FillRect(6, y-1, 308, stepY-2, fb.ColSurfaceAlt)
+			c.DrawRect(6, y-1, 308, stepY-2, fb.ColCyan)
 		}
 		c.DrawText(12, y+3, r.label, fb.ColFg, 1)
-		c.DrawText(214, y+3, truncate(r.value, 16), r.col, 1)
+		c.DrawText(206, y+3, truncate(r.value, 17), r.col, 1)
 	}
-	a.drawNavBar(c, [5]string{"TOGL", "SYNC", "SRCS", "RESET", "SAVE"})
+	if a.Set.Settings.ExpertMode {
+		a.drawNavBar(c, [5]string{"TOGL", "SYNC", "SRCS", "SAVE", "MENU"})
+		return
+	}
+	a.drawNavBar(c, [5]string{"TOGL", "SYNC", "", "", "MENU"})
 }
 
 type settingRow struct {
+	id    string
 	label string
 	value string
 	col   uint16
 }
 
 func (a *App) settingsRows() []settingRow {
+	expVal, expCol := "OFF (Simple)", fb.ColCyan
+	if a.Set.Settings.ExpertMode {
+		expVal, expCol = "ON (Full Lab)", fb.ColMagenta
+	}
 	mcpVal, mcpCol := "OFF (safe)", fb.ColAmber
 	if a.Set.Settings.MCPEnabled {
 		mcpVal, mcpCol = "ON (--mcp)", fb.ColEmerald
@@ -208,14 +244,42 @@ func (a *App) settingsRows() []settingRow {
 	if a.Set.SyncStatus != "" {
 		syncVal = a.Set.SyncStatus
 	}
-	return []settingRow{
-		{"MCP Server (SSH)", mcpVal, mcpCol},
-		{"TX Carrier Freq", fmt.Sprintf("%d kHz", a.Set.Settings.CarrierHz/1000), fb.ColCyan},
-		{"TX Duty Cycle", fmt.Sprintf("%d%%", a.Set.Settings.DutyCyclePct), fb.ColCyan},
-		{"Probe Interval", fmt.Sprintf("%.1fs", float64(a.Set.Settings.ProbeIntervalMs)/1000.0), fb.ColFg},
-		{"Sync DB Sources", syncVal, fb.ColEmerald},
-		{"Manage DB Sources", fmt.Sprintf("%d packs >", len(a.Set.Sources)), fb.ColMagenta},
+	if !a.Set.Settings.ExpertMode {
+		return []settingRow{
+			{"expert", "Expert Mode", expVal, expCol},
+			{"mcp", "MCP Server (SSH)", mcpVal, mcpCol},
+			{"sync", "Sync DB Sources", syncVal, fb.ColEmerald},
+			{"carrier", "TX Carrier Freq", fmt.Sprintf("%d kHz", a.Set.Settings.CarrierHz/1000), fb.ColCyan},
+		}
 	}
+	return []settingRow{
+		{"expert", "Expert Mode", expVal, expCol},
+		{"mcp", "MCP Server (SSH)", mcpVal, mcpCol},
+		{"carrier", "TX Carrier Freq", fmt.Sprintf("%d kHz", a.Set.Settings.CarrierHz/1000), fb.ColCyan},
+		{"duty", "TX Duty Cycle", fmt.Sprintf("%d%%", a.Set.Settings.DutyCyclePct), fb.ColCyan},
+		{"interval", "Probe Interval", fmt.Sprintf("%.1fs", float64(a.Set.Settings.ProbeIntervalMs)/1000.0), fb.ColFg},
+		{"sync", "Sync DB Sources", syncVal, fb.ColEmerald},
+		{"sources", "Manage DB Sources", fmt.Sprintf("%d packs >", len(a.Set.Sources)), fb.ColMagenta},
+	}
+}
+
+func carrierPresetIdx(hz uint32) int {
+	for i, v := range config.AllowedCarrierHz {
+		if v == hz {
+			return i
+		}
+	}
+	return 1
+}
+
+func intervalPresetIdx(ms int) int {
+	best := 3
+	for i, d := range library.ProbeIntervalPresets {
+		if int(d.Milliseconds()) == ms {
+			return i
+		}
+	}
+	return best
 }
 
 func (a *App) renderSourcesSubView(c *fb.Canvas) {

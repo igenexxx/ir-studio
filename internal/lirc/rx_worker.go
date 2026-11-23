@@ -91,6 +91,11 @@ func (r *RXWorker) runLoop(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
 			continue
 		}
 		if r.gate.IsTXActive() {

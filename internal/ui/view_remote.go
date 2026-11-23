@@ -1,10 +1,7 @@
 package ui
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
-	"strings"
 
 	"ir-studio/internal/fb"
 	"ir-studio/internal/input"
@@ -50,34 +47,6 @@ func (a *App) openRemoteEntry(entry library.RemoteEntry) {
 	a.Remote.LearnPending = false
 }
 
-func sortRemoteButtons(sigs []irfile.IRSignal) []irfile.IRSignal {
-	out := slices.Clone(sigs)
-	slices.SortStableFunc(out, func(a, b irfile.IRSignal) int {
-		return cmp.Compare(buttonPriority(a.Name), buttonPriority(b.Name))
-	})
-	return out
-}
-
-func buttonPriority(name string) int {
-	n := strings.ToLower(strings.TrimSpace(name))
-	switch {
-	case strings.HasPrefix(n, "power") || n == "pwr":
-		return 0
-	case strings.Contains(n, "mute"):
-		return 1
-	case strings.Contains(n, "vol_up") || n == "vol+":
-		return 2
-	case strings.Contains(n, "vol_dn") || n == "vol-" || strings.Contains(n, "vol_down"):
-		return 3
-	case strings.Contains(n, "ch_next") || n == "ch+":
-		return 4
-	case strings.Contains(n, "ch_prev") || n == "ch-":
-		return 5
-	default:
-		return 10
-	}
-}
-
 func (a *App) handleRemoteKey(act input.KeyAction) bool {
 	if a.Remote.AC.Active {
 		return a.handleACKey(act)
@@ -99,9 +68,17 @@ func (a *App) handleRemoteKey(act input.KeyAction) bool {
 	case input.KeySpace:
 		a.fireRemoteButton(3)
 	case input.KeySoft5:
-		a.sweepRemoteButton()
+		if a.Set.Settings.ExpertMode {
+			a.sweepRemoteButton()
+		} else {
+			a.startRemoteLearn()
+		}
 	case input.KeySoft6:
-		a.startRemoteLearn()
+		if a.Set.Settings.ExpertMode {
+			a.startRemoteLearn()
+		} else {
+			a.renameRemoteButton()
+		}
 	case input.KeyR:
 		a.renameRemoteButton()
 	case input.Key1:
@@ -114,11 +91,17 @@ func (a *App) handleRemoteKey(act input.KeyAction) bool {
 		if a.cancelCarrierSweep() {
 			return false
 		}
-		if a.Deps.TX != nil {
-			a.Deps.TX.CancelCurrent()
+		if a.Remote.LearnPending {
+			a.Remote.LearnPending = false
+			a.SetToast("Learn cancelled", fb.ColMuted)
+			return false
 		}
-		a.Remote.LearnPending = false
-		return false
+		if a.Remote.TXActive && a.Deps.TX != nil {
+			a.Deps.TX.CancelCurrent()
+			a.Remote.TXActive = false
+			return false
+		}
+		a.SwitchTab(TabSaved)
 	}
 	return false
 }
@@ -239,7 +222,7 @@ func (a *App) handleRemoteSoft8() {
 		a.SetToast("Promoted to USER: "+truncate(promoted.Name, 16), fb.ColEmerald)
 		return
 	}
-	a.Remote.AC.Active = true
+	a.SwitchTab(TabSaved)
 }
 
 func (a *App) persistActiveRemote(okMsg string) {
@@ -264,19 +247,25 @@ func (a *App) renderRemote(c *fb.Canvas) {
 	}
 	a.drawRemoteHeader(c)
 	if !a.Remote.Loaded || len(a.Remote.Entry.Signals) == 0 {
-		c.DrawTextCentered(fb.ScreenW/2, 74, "No remote loaded (open in SAVED)", fb.ColMuted, 1)
+		c.DrawTextCentered(fb.ScreenW/2, 74, "No remote loaded (open in My Remotes)", fb.ColMuted, 1)
 	} else {
 		a.drawRemoteGrid(c)
 		a.drawRemoteFooter(c)
 	}
 	if a.Remote.ConfirmDel {
 		drawConfirmBanner(c, "Delete button? [Enter=YES Esc=NO]")
+	} else if a.Remote.LearnPending {
+		drawConfirmBanner(c, "AIM REMOTE & PRESS BUTTON TO ADD...")
 	}
-	s8 := "AC"
+	s8 := "BACK"
 	if a.Remote.Loaded && a.Remote.Entry.ReadOnly {
 		s8 = "PROMO"
 	}
-	a.drawNavBar(c, [5]string{"SEND", "SWEEP", "LEARN+", "DEL", s8})
+	if a.Set.Settings.ExpertMode {
+		a.drawNavBar(c, [5]string{"SEND", "SWEEP", "ADD +", "DEL", s8})
+		return
+	}
+	a.drawNavBar(c, [5]string{"SEND", "ADD +", "NAME", "DEL", s8})
 }
 
 func (a *App) drawRemoteHeader(c *fb.Canvas) {

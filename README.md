@@ -21,32 +21,44 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies, zero `lir
 
 ---
 
-## 6-Tab Controls (46-Key TCA8418)
+## Linear Menu Flow & Simple / Expert Modes
 
-### Global Keys
+`ir-studio` launches into a clean **Home Menu (`HOME`)** grouped by purpose so capturing and replaying an IR remote takes two clear steps without wading through oscilloscope telemetry:
+
+- **Simple Mode (Default, `expert_mode: false`):** 5 focused actions fit on one screen with zero scrolling:
+  1. **`Read & Replay`** — 2-step linear wizard: aim remote & press a button → instantly test with **`4 SEND`** / **`Enter`**, save & open in Remote Deck with **`5 SAVE`**, recapture with **`6 AGAIN`**, or sweep `36/38/40/56 kHz` with **`7 SWEEP`**.
+  2. **`My Remotes`** — clean list of your saved `.ir` remotes (`4 OPEN`, `5 SEND`, `6 NEW`, `7 DEL`, `8 MENU`). Inside a remote, press **`5 LEARN+`** to keep adding more buttons!
+  3. **`Universal Off`** — offline `GEN:TV-B-Gone` 100-code TV power sweep (`Enter` / `4 RUN` starts/stops immediately).
+  4. **`Smart AC`** — direct checksummed HVAC controller for 6 AC brands (`Gree`, `Midea`, `Daikin`, `LG_AC`, `Samsung_AC`, `Mitsubishi`).
+  5. **`Settings`** — Expert Mode toggle, opt-in MCP Server (`SSH`), DB Sync, and TX Carrier frequency.
+- **Expert Mode (`5 EXP` on `HOME` or `Settings → Expert Mode`, persisted in `~/.config/ir-studio/config.json`):** Unlocks `+3` power tools (**`IR Lab (Scope)`**, **`Macros`**, **`DB Browser`**), `Tab` cycling across all screens, `[x]` batch multi-select, `PURGE` noise cleanup, `ACT` probe filters, `R` Smart Probe Ranking, and full `Settings` (Duty Cycle, Probe Interval, Manage DB Sources).
+
+### Global Keys (46-Key TCA8418)
 
 | Key | Action |
 | :--- | :--- |
-| **`Tab`** / **`9`** / **`0`** | Cycle active tab (`RX` → `REMOTE` → `PROBE` → `SAVED` → `MACRO` → `SET`) |
-| **`F` / `X` / `Z` / `C`** (or Arrows) | Up / Down / Left / Right navigation across lists, grids, waveform pan, and settings |
+| **`F` / `X` / `Z` / `C`** (or Arrows) | Up / Down / Left / Right navigation |
+| **`Enter`** | Primary action (Open menu item, Replay signal, Send button, Start/Stop Universal Off) |
 | **`4` `5` `6` `7` `8`** | Context-sensitive bottom softkeys aligned at `x = [49, 105, 161, 217, 273]` |
-| **`Enter`** | Primary action (Send button, Start/Stop Probe, Open remote, Run macro, Toggle setting) |
-| **`Space` / `1` / `D`** | Toggle `[x]` multi-select (`SAVED`, `PROBE`, `SET → Sources`); `Space` also stops active `PROBE` |
-| **`R`** | Trigger **Smart Probe Ranking** in `PROBE` tab (sort pack by 8D IR cosine similarity) |
-| **`H`** | Toggle 5-page built-in Help modal (`Z`/`C` flips pages `1/5..5/5`) |
-| **`Esc`** / **`Backspace`** | Cancel active TX/RX/Probe/Macro, close modal, or exit cleanly (restores 38 kHz / 33% defaults) |
+| **`Esc`** / **`Backspace`** | Step back (`Remote → My Remotes → HOME`); on `HOME` prompts exit confirmation (`Enter`/`Esc` = confirm) |
+| **`H`** | Toggle 4-page built-in Help modal (`Z`/`C` flips pages `1/4..4/4`) |
+| **`Tab`** / **`9`** / **`0`** | Return to `HOME` (Simple Mode) or cycle all screens (Expert Mode) |
+| **`Q`** | Immediate clean exit (restores `38 kHz / 33%` defaults) |
 
-### Per-Tab Bottom Softkeys (`4` – `8`)
+### Screen Softkeys (`4` – `8`)
 
-| Tab | `4` | `5` | `6` | `7` | `8` |
+| Screen | `4` | `5` | `6` | `7` | `8` |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`RX`** | `HOLD` / `LEARN` | `CLEAN` / `SWEEP` | `DIFF` (AC) | `SAVE` | `CARR` (36–56k) |
-| **`REMOTE`** | `SEND` | `SWEEP` (36–56k) | `LEARN+` | `DEL` | `AC` / `PROMO` |
-| **`REMOTE → AC`** | `PWR` | `FAN` | `SWING` | `SEND` | `SAVE` (`AC_*.ir`) |
-| **`PROBE`** | `RUN` / `STOP` | `TRY` | `SAVE` | `ACT` (Filter) | `PACK` (`GEN:TVBG`) |
-| **`SAVED`** | `OPEN` | `SEND` | `PROMO` / `PURGE` | `DEL` | `SRC` (User/DB) |
-| **`MACRO`** | `RUN` / `STOP` | `NEW` | `ADD` | `DEL` | `EDIT` |
-| **`SET`** | `TOGGLE` | `SYNC` | `ADD` (Src) | `DEL` (Src) | `SAVE` |
+| **`HOME`** | `OPEN` | `EXP:OF/ON` | `READ` | `SEND` | `QUIT` |
+| **`Read & Replay` (Captured)** | `SEND` (Test) | `SAVE` (& Open) | `AGAIN` | `ADDDB` / `SWEEP` | `MENU` |
+| **`My Remotes` (Simple)** | `OPEN` | `SEND` | `NEW` | `DEL` | `MENU` |
+| **`Remote Deck` (Simple)** | `SEND` | `LEARN+` | `NAME` | `DEL` | `BACK` / `PROMO` |
+| **`Universal Off` (Simple)** | `RUN` / `STOP` | `TRY` | `SAVE` | `PACK` | `MENU` |
+| **`Smart AC`** | `PWR` | `FAN` | `SWING` | `SEND` | `SAVE` (`AC_*.ir`) |
+| **`Settings` (Simple)** | `TOGL` | `SYNC` | — | — | `MENU` |
+| **`IR Lab (Scope)` *(Expert)*** | `HOLD` / `LEARN` | `CLEAN` / `SWEEP` | `DIFF` (AC) | `SAVE` | `CARR` |
+| **`Macros` *(Expert)*** | `RUN` / `STOP` | `NEW` | `ADD` | `DEL` | `EDIT` |
+| **`DB Browser` *(Expert)*** | `OPEN` | `SEND` | `PROMO` / `PURGE` | `DEL` | `SRC` (User/DB) |
 
 ---
 

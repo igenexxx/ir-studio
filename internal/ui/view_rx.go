@@ -24,6 +24,7 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	cp.Pulses = slices.Clone(cap.Pulses)
 	a.RX.LastCap = &cp
 	a.RX.GuardPending = false
+	a.RX.DenoiseKind = ""
 
 	cleaned, clusters := irml.DenoisePulses(nil, cp.Pulses, irml.DefaultGlitchMaxUs)
 	a.RX.Cleaned = cleaned
@@ -33,10 +34,12 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	if a.RX.DenoiseOn && cp.Decoded == nil {
 		if sig, ok := a.reg.Decode(cleaned); ok {
 			cp.Decoded = &sig
+			a.RX.DenoiseKind = "ML-CLEAN"
 		} else if nnClean, _, nnOK := irml.DenoisePulsesNeural(make([]int32, 0, len(cp.Pulses)), cp.Pulses, cp.CarrierEstHz); nnOK {
 			if sig, ok := a.reg.Decode(nnClean); ok {
 				a.RX.Cleaned = nnClean
 				cp.Decoded = &sig
+				a.RX.DenoiseKind = "PN-CLEAN"
 			}
 		}
 	}
@@ -44,6 +47,9 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	a.RX.Matches = a.fpIndex.Match(emb, cp.CarrierEstHz, make([]irml.MatchResult, 0, 3))
 	a.RX.MatchCursor = 0
 	a.updateACDiff(a.activeRXPulses())
+	if a.Chrome.Tab == TabRead {
+		a.RX.Learning = false
+	}
 }
 
 func (a *App) appendLearnedButton(cap lirc.RXCapture) {
@@ -118,7 +124,9 @@ func (a *App) handleRXKey(act input.KeyAction) bool {
 		if a.RX.AC.Active {
 			a.RX.AC.Active = false
 			a.RX.AC.HasBase = false
+			return false
 		}
+		a.goHome()
 	}
 	return false
 }

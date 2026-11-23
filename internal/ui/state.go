@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"strings"
 
 	"ir-studio/internal/config"
 	"ir-studio/internal/dbsync"
@@ -11,37 +14,79 @@ import (
 	"ir-studio/internal/lirc"
 )
 
-// Tab identifies one of the 6 IR Studio screens.
+// Tab identifies one of the IR Studio screens.
 type Tab uint8
 
 const (
-	TabRX Tab = iota
+	TabHome Tab = iota
+	TabRead
+	TabSaved
 	TabRemote
 	TabProbe
-	TabSaved
+	TabAC
+	TabRX
 	TabMacro
 	TabSet
 	tabCount
 )
 
-// PillLabel returns the compact 3-letter header pill label for t.
+// PillLabel returns a compact short label for t.
 func (t Tab) PillLabel() string {
 	switch t {
-	case TabRX:
-		return "RX"
+	case TabHome:
+		return "HOME"
+	case TabRead:
+		return "READ"
+	case TabSaved:
+		return "MY"
 	case TabRemote:
 		return "REM"
 	case TabProbe:
-		return "PRB"
-	case TabSaved:
-		return "SAV"
+		return "OFF"
+	case TabAC:
+		return "AC"
+	case TabRX:
+		return "LAB"
 	case TabMacro:
 		return "MAC"
 	case TabSet:
 		return "SET"
 	default:
-		return "RX"
+		return "HOME"
 	}
+}
+
+// Title returns the human-readable breadcrumb header title for t.
+func (t Tab) Title() string {
+	switch t {
+	case TabHome:
+		return "IR STUDIO"
+	case TabRead:
+		return "< READ & REPLAY"
+	case TabSaved:
+		return "< MY REMOTES"
+	case TabRemote:
+		return "< REMOTE"
+	case TabProbe:
+		return "< UNIVERSAL OFF"
+	case TabAC:
+		return "< SMART AC"
+	case TabRX:
+		return "< IR LAB"
+	case TabMacro:
+		return "< MACROS"
+	case TabSet:
+		return "< SETTINGS"
+	default:
+		return "IR STUDIO"
+	}
+}
+
+// HomeState holds main menu cursor, scroll offset, and exit confirmation prompt.
+type HomeState struct {
+	Cursor      int
+	Scroll      int
+	ConfirmExit bool
 }
 
 // SweepState tracks an active asynchronous multi-carrier TX sweep.
@@ -81,6 +126,7 @@ type ACDiffState struct {
 type RXState struct {
 	Learning     bool
 	DenoiseOn    bool
+	DenoiseKind  string
 	LastCap      *lirc.RXCapture
 	Cleaned      irfile.PulseTrain
 	Clusters     irml.PulseClusters
@@ -190,4 +236,32 @@ type asyncEvent struct {
 	syncDone  bool
 	syncMsg   string
 	syncErr   error
+}
+
+func sortRemoteButtons(sigs []irfile.IRSignal) []irfile.IRSignal {
+	out := slices.Clone(sigs)
+	slices.SortStableFunc(out, func(a, b irfile.IRSignal) int {
+		return cmp.Compare(buttonPriority(a.Name), buttonPriority(b.Name))
+	})
+	return out
+}
+
+func buttonPriority(name string) int {
+	n := strings.ToLower(strings.TrimSpace(name))
+	switch {
+	case strings.HasPrefix(n, "power") || n == "pwr":
+		return 0
+	case strings.Contains(n, "mute"):
+		return 1
+	case strings.Contains(n, "vol_up") || n == "vol+":
+		return 2
+	case strings.Contains(n, "vol_dn") || n == "vol-" || strings.Contains(n, "vol_down"):
+		return 3
+	case strings.Contains(n, "ch_next") || n == "ch+":
+		return 4
+	case strings.Contains(n, "ch_prev") || n == "ch-":
+		return 5
+	default:
+		return 10
+	}
 }

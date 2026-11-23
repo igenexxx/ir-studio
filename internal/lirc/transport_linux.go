@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -249,12 +250,19 @@ func (l *linuxTransport) WritePulses(ctx context.Context, pulses []uint32) error
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := waitFD(ctx, l.txFD, pollOutEvent); err != nil {
-			return err
-		}
+		// Linux lirc_dev.c lirc_poll() never sets EPOLLOUT for TX devices
+		// (e.g. gpio-ir-tx), so write directly and back off briefly on EAGAIN.
 		n, err := syscall.Write(l.txFD, buf[written:])
-		if errors.Is(err, syscall.EINTR) || errors.Is(err, syscall.EAGAIN) {
+		if errors.Is(err, syscall.EINTR) {
 			continue
+		}
+		if errors.Is(err, syscall.EAGAIN) {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(5 * time.Millisecond):
+				continue
+			}
 		}
 		if err != nil {
 			return err
@@ -320,11 +328,13 @@ func ioctlUint32(fd int, req uintptr, val *uint32) error {
 }
 
 func waitFD(ctx context.Context, fd int, events int16) error {
-	ts := syscall.Timespec{Nsec: pollSliceMs * 1_000_000}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// Re-initialize ts each iteration: Linux ppoll(2) overwrites ts with
+		// remaining time (0 on timeout), which would otherwise spin at 100% CPU.
+		ts := syscall.Timespec{Nsec: pollSliceMs * 1_000_000}
 		pfd := pollFD{fd: int32(fd), events: events}
 		n, _, errno := syscall.Syscall6(
 			syscall.SYS_PPOLL,
@@ -332,7 +342,7 @@ func waitFD(ctx context.Context, fd int, events int16) error {
 			1,
 			uintptr(unsafe.Pointer(&ts)),
 			0,
-			0,
+			8,
 			0,
 		)
 		if errno == syscall.EINTR {
