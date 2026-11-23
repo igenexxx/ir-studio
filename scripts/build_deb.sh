@@ -27,18 +27,12 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/DEBIAN"
-mkdir -p "$STAGE/etc/udev/rules.d"
 mkdir -p "$STAGE/usr/share/APPLaunch/bin"
 mkdir -p "$STAGE/usr/share/APPLaunch/applications"
 mkdir -p "$STAGE/usr/share/APPLaunch/share/images"
 
 install -m 0755 "dist/${PKG}" "$STAGE/usr/share/APPLaunch/bin/${PKG}"
 install -m 0644 "assets/images/ir-studio-icon.png" "$STAGE/usr/share/APPLaunch/share/images/ir-studio-icon.png"
-
-cat > "$STAGE/etc/udev/rules.d/99-ir-studio-lirc.rules" <<'EOF'
-SUBSYSTEM=="lirc", KERNEL=="lirc[0-9]*", MODE="0660", GROUP="plugdev"
-EOF
-chmod 0644 "$STAGE/etc/udev/rules.d/99-ir-studio-lirc.rules"
 
 cat > "$STAGE/usr/share/APPLaunch/applications/${PKG}.desktop" <<EOF
 [Desktop Entry]
@@ -72,6 +66,10 @@ EOF
 cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 #!/usr/bin/env bash
 set -e
+if [ -d /etc/udev/rules.d ]; then
+  printf 'SUBSYSTEM=="lirc", KERNEL=="lirc[0-9]*", MODE="0660", GROUP="plugdev"\n' > /etc/udev/rules.d/99-ir-studio-lirc.rules
+  chmod 0644 /etc/udev/rules.d/99-ir-studio-lirc.rules
+fi
 if command -v udevadm >/dev/null 2>&1; then
   udevadm control --reload-rules >/dev/null 2>&1 || true
   udevadm trigger --subsystem-match=lirc >/dev/null 2>&1 || true
