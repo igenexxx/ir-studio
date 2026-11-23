@@ -136,29 +136,16 @@ func TestHomeExitConfirmationAndExpertModePersistence(t *testing.T) {
 func TestReadNoiseGuardAndBackNavigationAcrossScreens(t *testing.T) {
 	app, _ := newTestApp(t)
 
-	// Open Read & Replay and inject noise.
+	// Open Read & Replay and inject ambient/sunlight noise -> MUST be silently rejected!
 	app.HandleKey(input.KeySoft6)
 	if app.Chrome.Tab != TabRead {
 		t.Fatalf("expected TabRead after HOME KeySoft6")
 	}
 	noise := irfile.PulseTrain{100, -100, 120, -90, 80, -110, 95, -105, 110, -85}
 	app.InjectCapture(lirc.RXCapture{Timestamp: time.Now(), Pulses: noise, CarrierEstHz: 38000})
-	app.RX.Class.IsNoise = true
-	app.RX.Class.SaveGuardWarn = true
-
-	// 5 SAVE prompts noise guard; Esc dismisses; 5 SAVE -> Enter force saves.
-	app.HandleKey(input.KeySoft5)
-	if !app.RX.GuardPending {
-		t.Fatalf("expected GuardPending on noise save in TabRead")
-	}
-	app.HandleKey(input.KeyEsc)
-	if app.RX.GuardPending || app.Chrome.Tab != TabRead {
-		t.Fatalf("expected Esc to dismiss noise guard without leaving TabRead")
-	}
-	app.HandleKey(input.KeySoft5)
-	app.HandleKey(input.KeyEnter)
-	if app.Chrome.Tab != TabRemote {
-		t.Fatalf("expected forced save to open TabRemote, got %v", app.Chrome.Tab)
+	if app.RX.LastCap != nil || !app.RX.Learning {
+		t.Fatalf("expected sunlight/ambient noise to be silently ignored in TabRead, got cap=%v learning=%v",
+			app.RX.LastCap != nil, app.RX.Learning)
 	}
 
 	// Verify Esc returns to HOME from Probe, AC, IR Lab (RX), Macro, Settings.

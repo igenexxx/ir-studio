@@ -22,27 +22,39 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	}
 	cp := cap
 	cp.Pulses = slices.Clone(cap.Pulses)
-	a.RX.LastCap = &cp
-	a.RX.GuardPending = false
-	a.RX.DenoiseKind = ""
-
 	cleaned, clusters := irml.DenoisePulses(nil, cp.Pulses, irml.DefaultGlitchMaxUs)
-	a.RX.Cleaned = cleaned
-	a.RX.Clusters = clusters
-	a.RX.Class = irml.ClassifySignal(a.activeRXPulses(), cp.CarrierEstHz)
-
+	denoiseKind := ""
 	if a.RX.DenoiseOn && cp.Decoded == nil {
 		if sig, ok := a.reg.Decode(cleaned); ok {
 			cp.Decoded = &sig
-			a.RX.DenoiseKind = "ML-CLEAN"
+			denoiseKind = "ML-CLEAN"
 		} else if nnClean, _, nnOK := irml.DenoisePulsesNeural(make([]int32, 0, len(cp.Pulses)), cp.Pulses, cp.CarrierEstHz); nnOK {
 			if sig, ok := a.reg.Decode(nnClean); ok {
-				a.RX.Cleaned = nnClean
+				cleaned = nnClean
 				cp.Decoded = &sig
-				a.RX.DenoiseKind = "PN-CLEAN"
+				denoiseKind = "PN-CLEAN"
 			}
 		}
 	}
+	evalPulses := cp.Pulses
+	if a.RX.DenoiseOn && len(cleaned) > 0 {
+		evalPulses = cleaned
+	}
+	cls := irml.ClassifySignal(evalPulses, cp.CarrierEstHz)
+
+	// In simple Read & Replay mode, silently ignore ambient/LED/sunlight noise
+	// bursts so stray room flicker never triggers false Step 2 captures.
+	if a.Chrome.Tab == TabRead && cp.Decoded == nil && cls.IsNoise {
+		return
+	}
+
+	a.RX.LastCap = &cp
+	a.RX.Cleaned = cleaned
+	a.RX.Clusters = clusters
+	a.RX.Class = cls
+	a.RX.DenoiseKind = denoiseKind
+	a.RX.GuardPending = false
+
 	emb := irml.ExtractEmbedding(a.activeRXPulses(), cp.CarrierEstHz)
 	a.RX.Matches = a.fpIndex.Match(emb, cp.CarrierEstHz, make([]irml.MatchResult, 0, 3))
 	a.RX.MatchCursor = 0
@@ -52,17 +64,38 @@ func (a *App) onRXCapture(cap lirc.RXCapture) {
 	}
 }
 
+func (a *App) flushPendingRX() {
+	if a.Deps.RX == nil {
+		return
+	}
+	for {
+		select {
+		case _, ok := <-a.Deps.RX.Captures():
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 func (a *App) appendLearnedButton(cap lirc.RXCapture) {
-	a.Remote.LearnPending = false
 	if !a.Remote.Loaded || a.Remote.Entry.ReadOnly {
+		a.Remote.LearnPending = false
 		return
 	}
 	spec := irfile.CarrierSpec{FreqHz: a.Set.Settings.CarrierHz, DutyPct: a.Set.Settings.DutyCyclePct}
 	sig, err := a.reg.DecodeOrRaw(cap.Pulses, spec)
 	if err != nil {
+		a.Remote.LearnPending = false
 		a.SetToast("Learn err: "+truncate(err.Error(), 24), fb.ColRed)
 		return
 	}
+	if sig.Protocol == "RAW" && irml.ClassifySignal(cap.Pulses, cap.CarrierEstHz).IsNoise {
+		return // ignore ambient noise while waiting for a real button press
+	}
+	a.Remote.LearnPending = false
 	sig.Name = fmt.Sprintf("Btn_%d", len(a.Remote.Entry.Signals)+1)
 	a.Remote.Entry.Signals = append(a.Remote.Entry.Signals, sig)
 	a.Remote.Entry.ButtonCount = len(a.Remote.Entry.Signals)

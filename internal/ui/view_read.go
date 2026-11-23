@@ -10,6 +10,7 @@ import (
 )
 
 func (a *App) enterReadAndReplay() {
+	a.flushPendingRX()
 	a.RX.LastCap = nil
 	a.RX.Cleaned = nil
 	a.RX.Matches = nil
