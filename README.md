@@ -41,7 +41,7 @@ Built in pure Go (`CGO_ENABLED=0`, zero external runtime dependencies, zero `lir
 | **`Enter`** | Primary action (Open menu item, Replay signal, Send button, Start/Stop Universal Off) |
 | **`4` `5` `6` `7` `8`** | Context-sensitive bottom softkeys aligned at `x = [49, 105, 161, 217, 273]` |
 | **`Esc`** / **`Backspace`** | Step back (`Remote → My Remotes → HOME`); on `HOME` prompts exit confirmation (`Enter`/`Esc` = confirm) |
-| **`H`** | Toggle 4-page built-in Help modal (`Z`/`C` flips pages `1/4..4/4`) |
+| **`H`** | Toggle context-aware Help modal for the active screen (`Z`/`C` flips overflow pages; cyan = softkeys `4..8`, amber = hotkeys) |
 | **`Tab`** / **`9`** / **`0`** | Return to `HOME` (Simple Mode) or cycle all screens (Expert Mode) |
 | **`Q`** | Immediate clean exit (restores `38 kHz / 33%` defaults) |
 

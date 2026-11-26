@@ -126,7 +126,8 @@ func TestHelpModalPages(t *testing.T) {
 	if !app.Chrome.HelpOpen {
 		t.Fatalf("expected HelpOpen after KeyH")
 	}
-	for page := range len(helpPages) {
+	pages := app.ActiveScreenHelp().PageCount()
+	for page := range pages {
 		if app.Chrome.HelpPage != page {
 			t.Fatalf("HelpPage = %d, want %d", app.Chrome.HelpPage, page)
 		}

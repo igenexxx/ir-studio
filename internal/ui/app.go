@@ -160,6 +160,7 @@ func (a *App) HandleKey(act input.KeyAction) bool {
 	}
 	if act == input.KeyH {
 		a.Chrome.HelpOpen = true
+		a.Chrome.HelpPage = 0
 		return false
 	}
 	if act == input.KeyTab {
@@ -174,18 +175,6 @@ func (a *App) HandleKey(act input.KeyAction) bool {
 		return true
 	}
 	return a.dispatchTabKey(act)
-}
-
-func (a *App) handleHelpKey(act input.KeyAction) bool {
-	switch act {
-	case input.KeyH, input.KeyEsc, input.KeyEnter:
-		a.Chrome.HelpOpen = false
-	case input.KeyLeft, input.KeyUp:
-		a.Chrome.HelpPage = (a.Chrome.HelpPage + len(helpPages) - 1) % len(helpPages)
-	case input.KeyRight, input.KeyDown:
-		a.Chrome.HelpPage = (a.Chrome.HelpPage + 1) % len(helpPages)
-	}
-	return false
 }
 
 func (a *App) dispatchTabKey(act input.KeyAction) bool {

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PKG="ir-studio"
-VER="0.3.9"
+VER="0.3.10"
 REV="1"
 ARCH="arm64"
 DEB_NAME="${PKG}_${VER}-${REV}_${ARCH}.deb"
@@ -56,7 +56,7 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Installed-Size: ${SIZE_KB}
-Maintainer: Zhenya <zhenya@cardputer.cc>
+Maintainer: Zhenya <61760187+igenexxx@users.noreply.github.com>
 Description: 38 kHz Infrared studio, ML denoiser and universal probe
  IR Studio unlocks Linux /dev/lirc* infrared TX/RX on CardputerZero with
  multi-protocol decoding, on-device 1D K-Means denoising, AC state-frame

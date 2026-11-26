@@ -20,7 +20,7 @@ import (
 const (
 	protocolVersion = "2024-11-05"
 	serverName      = "ir-studio"
-	serverVersion   = "0.3.9"
+	serverVersion   = "0.3.10"
 
 	errCodeParseError     = -32700
 	errCodeMethodNotFound = -32601
